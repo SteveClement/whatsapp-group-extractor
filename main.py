@@ -1,149 +1,179 @@
+import time
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.keys import Keys
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from webdriver_manager.chrome import ChromeDriverManager
-import time
 
-# Setup Selenium WebDriver
-options = webdriver.ChromeOptions()
-options.add_argument("--user-data-dir=/Users/steve/Library/Application Support/Google/ChromeAutomaton")  # Path to your Chrome profile
-options.add_argument("--profile-directory=Default")  # Uses your Chrome session to keep WhatsApp logged in
+# Configuration constants
+CHROME_PROFILE_PATH = "/Users/steve/Library/Application Support/Google/ChromeAutomaton"
+CHROME_PROFILE_DIR = "Default"
+GROUP_NAME = "Quartier Gare - sécurité & propreté"  # e.g., "X8823"
+SHORT_WAIT = 5  # default wait time (seconds) for most elements
+LONG_WAIT = 20  # longer wait time for slower elements (e.g., group info)
 
-driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-driver.get("https://web.whatsapp.com/")
+def init_driver(profile_path=None, profile_dir=None):
+    """
+    Initialize and return a Chrome WebDriver with the specified user profile.
+    This uses an existing Chrome profile to maintain WhatsApp Web login session.
+    """
+    options = webdriver.ChromeOptions()
+    if profile_path:
+        options.add_argument(f"--user-data-dir={profile_path}")
+    if profile_dir:
+        options.add_argument(f"--profile-directory={profile_dir}")
+    # Initialize the Chrome driver using WebDriverManager to handle driver installation
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    # Navigate to WhatsApp Web
+    driver.get("https://web.whatsapp.com/")
+    return driver
 
-waitTime = 5
-# Locate the group chat
-group_name = "Quartier Gare - sécurité & propreté"  # Replace with your group name
-group_name = "X8823"
+def wait_for_qr_scan(driver, check_interval=3):
+    """
+    Pause script execution until the WhatsApp Web QR code is scanned by the user.
+    The function repeatedly checks for the presence of the QR code canvas. 
+    It waits in a loop until the QR code element is no longer found, indicating a successful login.
+    """
+    while True:
+        try:
+            # Try to locate the QR code canvas on the page
+            driver.find_element(By.CSS_SELECTOR, "canvas[aria-label='Scan this QR code to link a device!']")
+            # If found, the user has not scanned the QR code yet
+            print("Waiting for QR code scan...")
+            time.sleep(check_interval)
+        except NoSuchElementException:
+            # QR code canvas not found, which likely means the QR was scanned and login is complete
+            print("QR Code scanned! Proceeding...")
+            break
 
-# Function to check if the QR code canvas is present
-def is_qr_code_present():
+def search_and_open_group(driver, group_name, timeout=SHORT_WAIT):
+    """
+    Search for a WhatsApp group by name and open the chat.
+    Raises an Exception if the search box or group chat is not found.
+    """
+    # Wait for the search input box to be present and interactable
     try:
-        WebDriverWait(driver, waitTime).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "canvas[aria-label='Scan this QR code to link a device!']"))
+        search_box = WebDriverWait(driver, timeout).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "div[contenteditable='true'][data-tab='3']"))
         )
-        return True
-    except:
-        return False
-
-
-# Wait until the user scans the QR code
-while is_qr_code_present():
-    print("Waiting for QR code scan...")
-    time.sleep(3)
-
-print("QR Code scanned! Proceeding...")
-
-print("Searching for group chat...")
-try:
-    # Wait for the search box to be present and interactable
-    search_box = WebDriverWait(driver, waitTime).until(
-        EC.presence_of_element_located((By.CSS_SELECTOR, "div[contenteditable='true'][data-tab='3']"))
-    )
+    except TimeoutException:
+        raise Exception("Search box not found on WhatsApp Web.")
+    # Enter the group name into the search box and press Enter
     search_box.clear()
     search_box.send_keys(group_name)
     search_box.send_keys(Keys.ENTER)
-except:
-    print("Search box not found or group name not found!")
-    driver.quit()
-    exit()
+    # Wait for the group chat to open (check for the group name in chat title)
+    try:
+        WebDriverWait(driver, timeout).until(
+            EC.presence_of_element_located((By.XPATH, f"//span[@title='{group_name}']"))
+        )
+    except TimeoutException:
+        raise Exception(f"Group chat '{group_name}' did not open in time.")
+    print(f"Group chat '{group_name}' found and opened.")
 
-print("Group chat found!")
-# Wait for the group chat to load
-try:
-    WebDriverWait(driver, waitTime).until(
-        EC.presence_of_element_located((By.XPATH, f"//span[@title='{group_name}']"))
+def open_group_info_panel(driver, menu_timeout=SHORT_WAIT, info_timeout=LONG_WAIT):
+    """
+    Open the group info panel from within an open group chat.
+    Clicks the chat menu (three-dot menu) and selects the "Group info" option.
+    Raises an Exception if the menu button or the Group info option cannot be found or clicked.
+    """
+    # Click the "burger" menu (three dots) in the chat header
+    try:
+        menu_button = WebDriverWait(driver, menu_timeout).until(
+            EC.element_to_be_clickable((By.XPATH, "//*[@id='main']/header/div[3]/div/div[3]/div/button/span"))
+        )
+        menu_button.click()
+    except TimeoutException:
+        raise Exception("Chat menu (three dots) button not found or not clickable.")
+    # Click the "Group info" option in the dropdown menu
+    try:
+        info_button = WebDriverWait(driver, info_timeout).until(
+            EC.element_to_be_clickable((By.XPATH, "//div[@aria-label='Group info']"))
+        )
+        info_button.click()
+    except TimeoutException:
+        raise Exception("'Group info' option not found or not clickable.")
+    print("Group info panel opened.")
+
+def expand_all_members(driver, timeout=SHORT_WAIT):
+    """
+    Expand the members list in the group info panel to show all participants.
+    For large groups, WhatsApp Web shows a partial list of members with a "See all" button.
+    This function clicks on the initial members list, then the "See all" button if it exists.
+    """
+    # Define XPaths for the members section button and the "See all members" button
+    expand_members_xpath = (
+        "//*[@id='app']/div/div[3]/div/div[5]/span/div/span/div/div/div/section/div[1]/div/div[3]/"
+        "span/span/button"
     )
-except:
-    print("Group chat did not load in time!")
-    driver.quit()
-    exit()
-
-print("Opening group chat burger menu...")
-# Click the "Burger" menu (three-dot menu) in the chat header
-try:
-    burger_menu_button = WebDriverWait(driver, waitTime).until(
-        EC.element_to_be_clickable((By.XPATH, "//*[@id='main']/header/div[3]/div/div[3]/div/button/span"))
+    all_members_xpath = (
+        "//*[@id='app']/div/div[3]/div/div[5]/span/div/span/div/div/div/section/div[6]/div[2]/div[3]/"
+        "div[2]/div/span/div"
     )
-    burger_menu_button.click()
-except:
-    print("Burger menu button not found!")
-    sleep(30)
-    driver.quit()
-    exit()
+    # Click the initial members section to expand the members list
+    try:
+        members_section_button = WebDriverWait(driver, timeout).until(
+            EC.element_to_be_clickable((By.XPATH, expand_members_xpath))
+        )
+        members_section_button.click()
+    except TimeoutException:
+        raise Exception("Members list section button not found or not clickable.")
+    # Click the "See all members" button, if present (for groups with many members)
+    try:
+        all_members_button = WebDriverWait(driver, timeout).until(
+            EC.element_to_be_clickable((By.XPATH, all_members_xpath))
+        )
+        all_members_button.click()
+    except TimeoutException:
+        # If this button isn't found, assume all members are already visible
+        print("No 'See all members' button found (all members might already be visible).")
 
-print("Opening group info...")
-# Click the "Group info" option from the dropdown
-try:
-    group_info_button = WebDriverWait(driver, 20).until(
-        EC.element_to_be_clickable((By.XPATH, "//div[@aria-label='Group info']"))
-    )
-    group_info_button.click()
-except:
-    print("Group info button not found!")
-    driver.quit()
-    exit()
+def get_group_members(driver, timeout=LONG_WAIT):
+    """
+    Retrieve the list of member names from the expanded group members list.
+    Returns a list of names. Raises an Exception if no members are found.
+    """
+    try:
+        # Wait until at least one member entry is present in the members list
+        member_elements = WebDriverWait(driver, timeout).until(
+            EC.presence_of_all_elements_located((By.XPATH, "//div[@role='button']//span[@dir='auto']"))
+        )
+    except TimeoutException:
+        raise Exception("No members found or the member list did not load.")
+    # Extract and return member names, excluding any empty strings
+    member_names = [elem.text for elem in member_elements if elem.text and elem.text.strip()]
+    return member_names
 
-print("Extracting group members...")
-# Wait for the group info to load
-try:
-    WebDriverWait(driver, waitTime).until(
-        EC.presence_of_element_located((By.XPATH, "//div[@id='app']"))
-    )
-except:
-    print("Group info did not load in time!")
-    driver.quit()
-    exit()
+def main():
+    """Main function to drive the WhatsApp group members extraction script."""
+    # Initialize WebDriver and navigate to WhatsApp Web
+    driver = init_driver(CHROME_PROFILE_PATH, CHROME_PROFILE_DIR)
+    try:
+        # Wait for user to scan the WhatsApp Web QR code (if not already logged in)
+        wait_for_qr_scan(driver)
+        # Search for the group chat by name and open it
+        search_and_open_group(driver, GROUP_NAME)
+        # Open the Group Info panel from within the chat
+        open_group_info_panel(driver)
+        # Expand the members list to ensure all members are visible
+        expand_all_members(driver)
+        # Retrieve the list of group member names
+        members = get_group_members(driver)
+        # Print the member list to the console
+        print("Group Members:")
+        for member in members:
+            print(member)
+            print("------")
+    except Exception as err:
+        # Print any errors encountered during the process
+        print(f"Error: {err}")
+    finally:
+        # Optional: wait a few seconds before closing (e.g., to review the browser or console output)
+        time.sleep(5)
+        driver.quit()
 
-
-
-print("Opening group members menu...")
-try:
-    members = WebDriverWait(driver, waitTime).until(
-        EC.element_to_be_clickable((By.XPATH, "//*[@id='app']/div/div[3]/div/div[5]/span/div/span/div/div/div/section/div[1]/div/div[3]/span/span/button"))
-    )
-    members.click()
-except:
-    print("Members button not found!")
-    sleep(30)
-    driver.quit()
-    exit()
-
-
-print("Opening all members menu...")
-try:
-    members = WebDriverWait(driver, waitTime).until(
-        EC.element_to_be_clickable((By.XPATH, "//*[@id='app']/div/div[3]/div/div[5]/span/div/span/div/div/div/section/div[6]/div[2]/div[3]/div[2]/div/span/div"))
-    )
-    members.click()
-except:
-    print("Members all button not found!")
-    sleep(30)
-    driver.quit()
-    exit()
-
-print("Extracting group members...")
-# Extract the member list
-try:
-    members_panel = WebDriverWait(driver, waitTime).until(
-        #EC.presence_of_element_located((By.XPATH, '//div[contains(@aria-label, "Group members")]'))
-        EC.presence_of_element_located((By.XPATH, '//*[@id="app"]/div/span[2]/div/span/div/div/div/div/div/div/header/div/div[2]/h1'))
-    )
-    members = members_panel.find_elements(By.XPATH, './/div[@role="button"]//span[@dir="auto"]')
-    member_list = [member.text for member in members if member.text.strip()]
-
-    # Print the member list
-    print("Group Members:")
-    for member in member_list:
-        print(member)
-except:
-    print("No members found or unable to extract member list!")
-
-
-sleep(30)
-# Close the driver
-driver.quit()
+if __name__ == "__main__":
+    main()
