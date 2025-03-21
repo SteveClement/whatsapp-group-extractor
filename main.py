@@ -253,7 +253,7 @@ def expand_all_members(driver, timeout=SHORT_WAIT):
     except TimeoutException:
         raise Exception("'Close member button not found or not clickable.")
     print("Member panel closed.")
-    time.sleep(SHORT_WAIT) # TODO: Decide if too short
+    time.sleep(SHORT_WAIT)  # TODO: Decide if too short
 
 
 def get_group_members(driver, timeout=LONG_WAIT):
@@ -268,7 +268,7 @@ def get_group_members(driver, timeout=LONG_WAIT):
         )
     except TimeoutException:
         raise Exception("No members found or the member list did not load.")
-    time.sleep(SHORT_WAIT) # TODO: Decide if too short
+    time.sleep(SHORT_WAIT)  # TODO: Decide if too short
     # Extract and return member names, excluding any empty strings
     member_names = [elem.text for elem in member_elements if elem.text and elem.text.strip()]
     return member_names
@@ -282,6 +282,9 @@ def main():
         # Wait for user to scan the WhatsApp Web QR code (if not already logged in)
         wait_for_qr_scan(driver)
         # TODO: If a group name is not provided, list all and grab all group chats instead
+        if GROUP_NAME:
+            # Placeholder for the group name to search for:w
+            print(f"Fetching: {GROUP_NAME}")
         # Optional: list all group chats (for reference)
         all_groups = list_all_groups(driver)
         print("All Group Chats:")
@@ -298,7 +301,7 @@ def main():
             print("Group Members:")
             for member in members:
                 print(member)
-                print("------")                
+                print("------")
         time.sleep(3)
 
         return
