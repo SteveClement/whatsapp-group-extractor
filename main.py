@@ -89,6 +89,7 @@ def search_and_open_group(driver, group_name, timeout=SHORT_WAIT):
         )
     except TimeoutException:
         raise Exception(f"Group chat '{group_name}' did not open in time.")
+    # TODO: Back button xpath is not always the same
     # Go back
     try:
         back_button = WebDriverWait(driver, timeout).until(
@@ -96,7 +97,7 @@ def search_and_open_group(driver, group_name, timeout=SHORT_WAIT):
         )
         back_button.click()
     except TimeoutException:
-        # TODO: Handle this case more gracefully, for some reason the "Back" button is not always selectable
+        # TODO: Handle this case more gracefully, for some reason the "Back" button is not always selectable, fixed by TODO above
         # raise Exception("Back button not found on WhatsApp Web.")
         print("Back button not found on WhatsApp Web.")
 
@@ -233,6 +234,7 @@ def expand_all_members(driver, timeout=SHORT_WAIT):
         print(f"{members_section_button.text}")
     except TimeoutException:
         raise Exception("Members list section button not found or not clickable.")
+    # TODO: When entering a group that is not active anymore, the all_members_xpath seems different
     # Click the "See all members" button, if present (for groups with many members)
     try:
         all_members_button = WebDriverWait(driver, timeout).until(
@@ -251,6 +253,7 @@ def expand_all_members(driver, timeout=SHORT_WAIT):
     except TimeoutException:
         raise Exception("'Close member button not found or not clickable.")
     print("Member panel closed.")
+    time.sleep(SHORT_WAIT) # TODO: Decide if too short
 
 
 def get_group_members(driver, timeout=LONG_WAIT):
@@ -265,6 +268,7 @@ def get_group_members(driver, timeout=LONG_WAIT):
         )
     except TimeoutException:
         raise Exception("No members found or the member list did not load.")
+    time.sleep(SHORT_WAIT) # TODO: Decide if too short
     # Extract and return member names, excluding any empty strings
     member_names = [elem.text for elem in member_elements if elem.text and elem.text.strip()]
     return member_names
@@ -277,31 +281,28 @@ def main():
     try:
         # Wait for user to scan the WhatsApp Web QR code (if not already logged in)
         wait_for_qr_scan(driver)
+        # TODO: If a group name is not provided, list all and grab all group chats instead
         # Optional: list all group chats (for reference)
         all_groups = list_all_groups(driver)
         print("All Group Chats:")
         for group in all_groups:
+            # Search for the group chat by name and open it
             search_and_open_group(driver, group)
+            # Open the Group Info panel from within the chat
             open_group_info_panel(driver)
+            # Expand the members list to ensure all members are visible
             expand_all_members(driver)
+            # Retrieve the list of group member names
             members = get_group_members(driver)
-            print("------")
-            time.sleep(5)
+            # Print the member list to the console
+            print("Group Members:")
+            for member in members:
+                print(member)
+                print("------")                
         time.sleep(3)
+
         return
-        # Search for the group chat by name and open it
-        search_and_open_group(driver, GROUP_NAME)
-        # Open the Group Info panel from within the chat
-        open_group_info_panel(driver)
-        # Expand the members list to ensure all members are visible
-        expand_all_members(driver)
-        # Retrieve the list of group member names
-        members = get_group_members(driver)
-        # Print the member list to the console
-        print("Group Members:")
-        for member in members:
-            print(member)
-            print("------")
+
     except Exception as err:
         # Print any errors encountered during the process
         print(f"Error: {err}")
