@@ -1,5 +1,5 @@
 import time
-from config import CHROME_PROFILE_PATH, CHROME_PROFILE_DIR, GROUP_NAME, SHORT_WAIT, LONG_WAIT, HEADLESS
+from config import CHROME_PROFILE_PATH, CHROME_PROFILE_DIR, GROUP_NAME, SHORT_WAIT, LONG_WAIT, HEADLESS, DEBUG
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -31,7 +31,7 @@ def init_driver(profile_path=None, profile_dir=None):
 def wait_for_qr_scan(driver, check_interval=SHORT_WAIT):
     """
     Pause script execution until the WhatsApp Web QR code is scanned by the user.
-    The function repeatedly checks for the presence of the QR code canvas. 
+    The function repeatedly checks for the presence of the QR code canvas.
     It waits in a loop until the QR code element is no longer found, indicating a successful login.
     """
     while True:
@@ -95,13 +95,13 @@ def search_and_open_group(driver, group_name, timeout=SHORT_WAIT):
 def list_all_groups(driver, timeout=SHORT_WAIT):
     """
     Lists all group chats from the WhatsApp Web chat list.
-    
-    This function assumes that group chats are identifiable by an element with a 
+
+    This function assumes that group chats are identifiable by an element with a
     data-testid attribute 'icon-group' within each chat's DOM structure.
-    
+
     Returns:
         A list of group chat names.
-    
+
     Note:
         The WhatsApp Web DOM can change over time. If no groups are found,
         verify that the XPath used to locate the group icon is still valid.
@@ -132,19 +132,25 @@ def list_all_groups(driver, timeout=SHORT_WAIT):
                 chat_title = title_element.get_attribute("title") or title_element.text
                 group_names += {chat_title}
             except Exception as e:
+                if DEBUG:
+                    print(f"Error extracting chat title: {e}")
                 chat_title = "Title not found"
-            
+
             try:
                 # Extract the timestamp (assuming it is inside a div with a certain class)
                 timestamp = chat.find_element(By.XPATH, ".//div[contains(@class, '_ak8i')]").text
             except Exception as e:
+                if DEBUG:
+                    print(f"Error extracting timestamp: {e}")
                 timestamp = "Timestamp not found"
-            
+
             try:
                 # Extract the message preview text; this example assumes the preview is in a span after a colon.
                 preview_element = chat.find_element(By.XPATH, ".//div[contains(@class, '_ak8j')]")
                 message_preview = preview_element.text
             except Exception as e:
+                if DEBUG:
+                    print(f"Error extracting message preview: {e}")
                 message_preview = "Message preview not found"
 
             print(f"Chat #{index}:")
@@ -259,7 +265,6 @@ def main():
             open_group_info_panel(driver)
             expand_all_members(driver)
             members = get_group_members(driver)
-            #print(members)
             print("------")
             time.sleep(5)
         time.sleep(30)
@@ -284,6 +289,7 @@ def main():
         # Optional: wait a few seconds before closing (e.g., to review the browser or console output)
         time.sleep(SHORT_WAIT)
         driver.quit()
+
 
 if __name__ == "__main__":
     main()
