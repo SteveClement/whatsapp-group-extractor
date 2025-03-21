@@ -6,3 +6,4 @@ SHORT_WAIT = 5  # default wait time (seconds) for most elements
 LONG_WAIT = 20  # longer wait time for slower elements (e.g., group info)
 HEADLESS = False  # set to True to run Chrome in headless mode
 DEBUG = False # Boolean flag to enable or disable debug mode
+SLOW_MODE = True # This mode turns delayed typing on

@@ -1,5 +1,5 @@
 import time
-from config import CHROME_PROFILE_PATH, CHROME_PROFILE_DIR, GROUP_NAME, SHORT_WAIT, LONG_WAIT, HEADLESS, DEBUG
+from config import CHROME_PROFILE_PATH, CHROME_PROFILE_DIR, GROUP_NAME, SHORT_WAIT, LONG_WAIT, HEADLESS, DEBUG, SLOW_MODE
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -8,6 +8,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from webdriver_manager.chrome import ChromeDriverManager
+import random
 
 
 def init_driver(profile_path=None, profile_dir=None):
@@ -26,6 +27,25 @@ def init_driver(profile_path=None, profile_dir=None):
     # Navigate to WhatsApp Web
     driver.get("https://web.whatsapp.com/")
     return driver
+
+
+def slow_send_keys(element, text, min_delay=0, max_delay=0.2):
+    """
+    Sends keys to the given element one character at a time with a random delay.
+
+    Args:
+        element: The WebElement to send keys to.
+        text (str): The text to type.
+        min_delay (float): Minimum delay in seconds between each keystroke.
+        max_delay (float): Maximum delay in seconds between each keystroke.
+    """
+    if not SLOW_MODE:
+        element.send_keys(text)
+        return
+
+    for char in text:
+        element.send_keys(char)
+        time.sleep(random.uniform(min_delay, max_delay))
 
 
 def wait_for_qr_scan(driver, check_interval=SHORT_WAIT):
@@ -60,7 +80,7 @@ def search_and_open_group(driver, group_name, timeout=SHORT_WAIT):
     except TimeoutException:
         raise Exception("Search box not found on WhatsApp Web.")
     # Enter the group name into the search box and press Enter
-    search_box.send_keys(group_name)
+    slow_send_keys(search_box, group_name)
     search_box.send_keys(Keys.ENTER)
     # Wait for the group chat to open (check for the group name in chat title)
     try:
@@ -80,7 +100,7 @@ def search_and_open_group(driver, group_name, timeout=SHORT_WAIT):
         # raise Exception("Back button not found on WhatsApp Web.")
         print("Back button not found on WhatsApp Web.")
 
-    search_box.send_keys(group_name)
+    # slow_send_keys(search_box, group_name)
     try:
         clear_button = WebDriverWait(driver, timeout).until(
             EC.element_to_be_clickable((By.XPATH, "//*[@id='side']/div[1]/div/div[2]/span/button/span"))
@@ -267,7 +287,7 @@ def main():
             members = get_group_members(driver)
             print("------")
             time.sleep(5)
-        time.sleep(30)
+        time.sleep(3)
         return
         # Search for the group chat by name and open it
         search_and_open_group(driver, GROUP_NAME)
