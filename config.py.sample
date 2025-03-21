@@ -1,0 +1,9 @@
+# Configuration constants
+
+# Full path to a seperate Chrome Profile directory
+CHROME_PROFILE_PATH = "./Google/ChromeAutomaton"
+CHROME_PROFILE_DIR = "Default"
+GROUP_NAME = "Add specific group here"  # e.g., "X8823"
+SHORT_WAIT = 5  # default wait time (seconds) for most elements
+LONG_WAIT = 20  # longer wait time for slower elements (e.g., group info)
+HEADLESS = False  # set to True to run Chrome in headless mode
