@@ -23,7 +23,11 @@ def init_driver(profile_path=None, profile_dir=None):
     if profile_dir:
         options.add_argument(f"--profile-directory={profile_dir}")
     # Initialize the Chrome driver using WebDriverManager to handle driver installation
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    try:
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    except Exception as e:
+        print(f"Error initializing Chrome WebDriver: {e}")
+        exit(1)
     # Navigate to WhatsApp Web
     driver.get("https://web.whatsapp.com/")
     return driver
@@ -57,6 +61,7 @@ def wait_for_qr_scan(driver, check_interval=SHORT_WAIT):
     while True:
         try:
             # Try to locate the QR code canvas on the page
+            # TODO: This CSS selector is not always the same
             driver.find_element(By.CSS_SELECTOR, "canvas[aria-label='Scan this QR code to link a device!']")
             # If found, the user has not scanned the QR code yet
             print("Waiting for QR code scan...")
