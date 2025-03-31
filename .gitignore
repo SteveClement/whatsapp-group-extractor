@@ -1,5 +1,8 @@
 # Handcrafted by a human start
 config.py
+
+# Default folder for Chrome Profile
+Google/
 # Handcrafted by a human end
 
 # Created by https://www.toptal.com/developers/gitignore/api/python
