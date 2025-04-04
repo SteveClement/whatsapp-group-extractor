@@ -1,4 +1,5 @@
 import time
+import os
 from config import CHROME_PROFILE_PATH, CHROME_PROFILE_DIR, GROUP_NAME, SHORT_WAIT, LONG_WAIT, HEADLESS, DEBUG, SLOW_MODE
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -9,6 +10,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from webdriver_manager.chrome import ChromeDriverManager
 import random
+import subprocess
 
 
 def init_driver(profile_path=None, profile_dir=None):
@@ -18,6 +20,7 @@ def init_driver(profile_path=None, profile_dir=None):
     """
     options = webdriver.ChromeOptions()
     options.headless = HEADLESS
+    options.binary_location = detect_chrome()  # Set the path to the Chrome binary if not in default location
     if profile_path:
         options.add_argument(f"--user-data-dir={profile_path}")
     if profile_dir:
@@ -31,6 +34,41 @@ def init_driver(profile_path=None, profile_dir=None):
     # Navigate to WhatsApp Web
     driver.get("https://web.whatsapp.com/")
     return driver
+
+
+def detect_chrome():
+    """
+    Check if Chrome is installed on the system.
+    This function attempts to find the Chrome executable in common installation paths.
+    """
+    chrome_paths = [
+        "/usr/bin/google-chrome",
+        "/usr/bin/chromium-browser",
+        "/usr/local/bin/google-chrome",
+        "/usr/local/bin/chromium-browser",
+        "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+        "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+        "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    ]
+    chrome_idx = 0
+    found_chrome_paths = []  # Use a separate list to store found paths
+
+    for path in chrome_paths:
+        if os.path.exists(path):
+            version = subprocess.check_output([path, "--version"]).decode("utf-8")
+            if "Google Chrome" in version:
+                if DEBUG:
+                    print(f"{version.strip()} found at {path}")
+                found_chrome_paths.append(path)
+                chrome_idx += 1
+
+    if chrome_idx > 1:
+        # FIXME: This is a workaround for the issue where multiple Chrome installations are detected.
+        # In this case, we assume the second installation is the correct one. Only works on macOS.
+        return found_chrome_paths[1]
+
+    return False
 
 
 def slow_send_keys(element, text, min_delay=0, max_delay=0.2):
