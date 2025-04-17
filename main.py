@@ -224,7 +224,7 @@ def list_all_groups(driver, timeout=SHORT_WAIT):
             print(group_names)
 
     except TimeoutException:
-        print("No group icons were found in the chat list.")
+        raise Exception("No group icons were found in the chat list.")
     return group_names
 
 
