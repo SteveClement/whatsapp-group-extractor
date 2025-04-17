@@ -62,3 +62,15 @@ HEADLESS = False
 
 # Enable debug output for troubleshooting
 DEBUG = True
+
+# Other tools
+
+[WhatsTK](https://whatstk.readthedocs.io/en/latest/)
+
+[Obsolete but valid pointers](https://github.com/GabriellBP/whatsapp-web-scraping)
+
+[WPP Whatsapp](https://github.com/3mora2/WPP_Whatsapp) based one [wppconnect](https://github.com/wppconnect-team/wppconnect)
+
+# Todo
+
+In a group list with more then 16 participants you need to scrolldown to fetch the full list, possible pointers [here](https://stackoverflow.com/questions/61826721/how-to-scrape-elements-of-whatsapp-web-using-selenium).
