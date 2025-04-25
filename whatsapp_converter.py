@@ -521,7 +521,7 @@ def generate_html(messages, extract_dir, output_file, info_text=None, chat_title
             </div>
             <div class="header-buttons">
                 <button class="order-toggle" onclick="toggleChatOrder()" title="Reverse chat order">
-                    <i id="order-icon">⏫</i>
+                    <i id="order-icon">⏬</i>
                 </button>
                 <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark/light mode">
                     <i id="theme-icon">🌙</i>
@@ -646,7 +646,7 @@ def generate_html(messages, extract_dir, output_file, info_text=None, chat_title
         function toggleChatOrder() {
             const chatMessages = document.querySelector('.chat-messages');
             const orderIcon = document.getElementById('order-icon');
-            const currentOrder = localStorage.getItem('chatOrder') || 'chronological';
+            const currentOrder = localStorage.getItem('chatOrder') || 'reverse-chronological'; // Default to reverse now
             
             // Convert children to array for easier manipulation
             const messagesArray = Array.from(chatMessages.children);
@@ -712,6 +712,69 @@ def generate_html(messages, extract_dir, output_file, info_text=None, chat_title
             }
         }
         
+        // Function to set initial chat order
+        function setInitialChatOrder() {
+            const chatMessages = document.querySelector('.chat-messages');
+            const orderIcon = document.getElementById('order-icon');
+            const savedOrder = localStorage.getItem('chatOrder');
+            
+            // If no saved preference, set to reverse chronological by default
+            if (!savedOrder) {
+                localStorage.setItem('chatOrder', 'reverse-chronological');
+            }
+            
+            // If we want reverse chronological (either by default or saved preference)
+            if (!savedOrder || savedOrder === 'reverse-chronological') {
+                // Directly manipulate the DOM instead of toggling
+                const messagesArray = Array.from(chatMessages.children);
+                
+                // Get date separators and their corresponding messages
+                const dateGroups = [];
+                let currentGroup = [];
+                let currentDate = null;
+                
+                messagesArray.forEach(element => {
+                    if (element.classList.contains('date-separator')) {
+                        if (currentDate) {
+                            dateGroups.push({
+                                dateSeparator: currentDate,
+                                messages: currentGroup
+                            });
+                        }
+                        currentDate = element;
+                        currentGroup = [];
+                    } else {
+                        currentGroup.push(element);
+                    }
+                });
+                
+                // Don't forget to add the last group
+                if (currentDate) {
+                    dateGroups.push({
+                        dateSeparator: currentDate,
+                        messages: currentGroup
+                    });
+                }
+                
+                // Clear the current content
+                chatMessages.innerHTML = '';
+                
+                // Reverse the order of date groups
+                dateGroups.reverse();
+                
+                // For each date group, add the date separator and then the messages in reverse order
+                dateGroups.forEach(group => {
+                    chatMessages.appendChild(group.dateSeparator);
+                    group.messages.reverse().forEach(message => {
+                        chatMessages.appendChild(message);
+                    });
+                });
+                
+                // Set the icon to show we're in reverse-chronological mode
+                orderIcon.textContent = '⏬'; // Down arrow
+            }
+        }
+        
         function toggleInfoModal() {
             const modal = document.getElementById('info-modal');
             if (modal) {
@@ -726,6 +789,20 @@ def generate_html(messages, extract_dir, output_file, info_text=None, chat_title
             }
         }
         
+        // Set theme based on time or saved preference
+        function setInitialTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            const themeIcon = document.getElementById('theme-icon');
+            const currentHour = new Date().getHours();
+            
+            // Apply dark mode if after 9 PM (21:00) or before 6 AM, or if user previously selected dark mode
+            if (savedTheme === 'dark' || currentHour >= 21 || currentHour < 6) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                themeIcon.textContent = '☀️'; // sun icon
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+        
         // Close modal when clicking outside of it
         window.onclick = function(event) {
             const modal = document.getElementById('info-modal');
@@ -736,20 +813,11 @@ def generate_html(messages, extract_dir, output_file, info_text=None, chat_title
         
         // Check for saved preferences
         document.addEventListener('DOMContentLoaded', () => {
-            // Apply theme preference
-            const savedTheme = localStorage.getItem('theme');
-            const themeIcon = document.getElementById('theme-icon');
+            // Apply theme preference based on time or saved setting
+            setInitialTheme();
             
-            if (savedTheme === 'dark') {
-                document.documentElement.setAttribute('data-theme', 'dark');
-                themeIcon.textContent = '☀️'; // sun icon
-            }
-            
-            // Apply chat order preference
-            const savedOrder = localStorage.getItem('chatOrder');
-            if (savedOrder === 'reverse-chronological') {
-                toggleChatOrder();
-            }
+            // Set initial chat order (newest first by default)
+            setInitialChatOrder();
         });
     </script>
 </body>
