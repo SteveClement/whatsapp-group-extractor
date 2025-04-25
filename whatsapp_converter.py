@@ -26,6 +26,15 @@ def find_chat_file(extract_dir):
     
     raise FileNotFoundError("Could not find _chat.txt file in the extracted directory")
 
+def find_info_file(extract_dir):
+    """Find the info.txt file in the extract directory if it exists."""
+    for root, _, files in os.walk(extract_dir):
+        for file in files:
+            if file.lower() == 'info.txt':
+                return os.path.join(root, file)
+    
+    return None
+
 def parse_chat(chat_file_path):
     """Parse the WhatsApp chat file and return structured data."""
     with open(chat_file_path, 'r', encoding='utf-8') as f:
@@ -151,7 +160,7 @@ def find_media_file(extract_dir, filename):
     
     return None
 
-def generate_html(messages, extract_dir, output_file):
+def generate_html(messages, extract_dir, output_file, info_text=None):
     """Generate a nice HTML page from the parsed messages."""
     # Get relative path to JSON file
     json_file = os.path.basename(output_file).replace('.html', '.json')
@@ -241,7 +250,7 @@ def generate_html(messages, extract_dir, output_file):
         gap: 10px;
     }
     
-    .json-link {
+    .json-link, .info-button {
         font-size: 0.8em;
         color: rgba(255, 255, 255, 0.8);
         text-decoration: none;
@@ -251,11 +260,55 @@ def generate_html(messages, extract_dir, output_file):
         background: rgba(255, 255, 255, 0.2);
         border-radius: 4px;
         transition: background-color 0.2s;
+        position: relative;
     }
     
-    .json-link:hover {
+    .json-link:hover, .info-button:hover {
         background: rgba(255, 255, 255, 0.3);
         text-decoration: none;
+    }
+    
+    .info-tooltip {
+        position: absolute;
+        visibility: hidden;
+        opacity: 0;
+        width: 320px;
+        background-color: var(--container-bg);
+        color: var(--text-color);
+        text-align: left;
+        border-radius: 6px;
+        padding: 10px;
+        box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+        z-index: 1;
+        bottom: 125%;
+        left: 50%;
+        transform: translateX(-50%);
+        transition: opacity 0.3s, visibility 0.3s;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        font-style: normal;
+        font-weight: normal;
+        font-size: 0.9em;
+        line-height: 1.4;
+        white-space: pre-wrap;
+        overflow-y: auto;
+        max-height: 300px;
+        border: 1px solid var(--message-other-border);
+    }
+    
+    .info-tooltip::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -5px;
+        border-width: 5px;
+        border-style: solid;
+        border-color: var(--container-bg) transparent transparent transparent;
+    }
+    
+    .info-button:hover .info-tooltip {
+        visibility: visible;
+        opacity: 1;
     }
     
     .theme-toggle {
@@ -407,6 +460,10 @@ def generate_html(messages, extract_dir, output_file):
             <div class="chat-title">
                 <h1>WhatsApp Chat</h1>
                 <a href="{json_file}" class="json-link" download>JSON</a>
+                {f'''<div class="info-button">
+                    Info
+                    <div class="info-tooltip">{html.escape(info_text)}</div>
+                </div>''' if info_text else ''}
             </div>
             <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark/light mode">
                 <i id="theme-icon">🌙</i>
@@ -558,8 +615,19 @@ def main():
         chat_file = find_chat_file(extract_dir)
         messages = parse_chat(chat_file)
         
+        # Check if there's an info.txt file
+        info_text = None
+        info_file = find_info_file(extract_dir)
+        if info_file:
+            try:
+                with open(info_file, 'r', encoding='utf-8') as f:
+                    info_text = f.read()
+                print(f"Found info.txt file: {info_file}")
+            except Exception as e:
+                print(f"Warning: Found info.txt but couldn't read it: {e}")
+        
         # Generate both HTML and JSON outputs
-        generate_html(messages, extract_dir, output_html)
+        generate_html(messages, extract_dir, output_html, info_text)
         export_json(messages, output_json)
         
         print("\nProcessing complete!")
