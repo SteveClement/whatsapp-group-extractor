@@ -290,11 +290,14 @@ def generate_html(messages, extract_dir, output_file):
         # Add message content if there is any
         content = message['content']
         if content:
-            # Convert URLs to links
+            # First escape the HTML
+            content = html.escape(content)
+            
+            # Then convert URLs to links
             url_pattern = r'(https?://[^\s]+)'
             content = re.sub(url_pattern, r'<a href="\1" target="_blank">\1</a>', content)
             
-            html_content += f'                <div class="message-content">{html.escape(content)}</div>\n'
+            html_content += f'                <div class="message-content">{content}</div>\n'
         
         # Add media files if there are any
         if message['media']:
