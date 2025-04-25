@@ -58,10 +58,12 @@ for line in chat_text:
     match = message_pattern.match(line)
     if match:
         date, time, sender, message = match.groups()
-        html_content.append(f'<div class="message">
-            <span class="timestamp">[{date} {time}]</span>
-            <span class="sender">{sender}</span>: {message}
-        </div>')
+        html_content.append(
+            f'<div class="message">'
+            f'<span class="timestamp">[{date} {time}]</span> '
+            f'<span class="sender">{sender}</span>: {message}'
+            f'</div>'
+        )
 
         # Check if message references a media file
         media_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.mp4', '.webm']
