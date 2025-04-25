@@ -4,6 +4,7 @@ import zipfile
 import html
 import shutil
 import json
+import argparse
 from datetime import datetime
 from pathlib import Path
 
@@ -272,12 +273,12 @@ def generate_html(messages, extract_dir, output_file, info_text=None):
         position: absolute;
         visibility: hidden;
         opacity: 0;
-        width: 320px;
+        width: 400px;
         background-color: var(--container-bg);
         color: var(--text-color);
         text-align: left;
         border-radius: 6px;
-        padding: 10px;
+        padding: 15px;
         box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
         z-index: 1;
         bottom: 125%;
@@ -291,7 +292,7 @@ def generate_html(messages, extract_dir, output_file, info_text=None):
         line-height: 1.4;
         white-space: pre-wrap;
         overflow-y: auto;
-        max-height: 300px;
+        max-height: 500px;
         border: 1px solid var(--message-other-border);
     }
     
@@ -306,9 +307,57 @@ def generate_html(messages, extract_dir, output_file, info_text=None):
         border-color: var(--container-bg) transparent transparent transparent;
     }
     
-    .info-button:hover .info-tooltip {
-        visibility: visible;
-        opacity: 1;
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 10;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background-color: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(3px);
+    }
+    
+    .modal-content {
+        background-color: var(--container-bg);
+        color: var(--text-color);
+        margin: 10% auto;
+        padding: 20px;
+        border: 1px solid var(--message-other-border);
+        border-radius: 10px;
+        width: 80%;
+        max-width: 700px;
+        max-height: 70vh;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        position: relative;
+        transition: background-color 0.3s ease;
+    }
+    
+    .close-button {
+        color: var(--time-color);
+        float: right;
+        font-size: 28px;
+        font-weight: bold;
+        cursor: pointer;
+        margin-top: -10px;
+    }
+    
+    .close-button:hover {
+        color: var(--sender-color);
+    }
+    
+    .modal-body {
+        margin-top: 15px;
+        white-space: pre-wrap;
+        overflow-y: auto;
+        max-height: calc(70vh - 100px);
+        line-height: 1.5;
+    }
+    
+    .info-button {
+        cursor: pointer;
     }
     
     .theme-toggle {
@@ -460,7 +509,7 @@ def generate_html(messages, extract_dir, output_file, info_text=None):
             <div class="chat-title">
                 <h1>WhatsApp Chat</h1>
                 <a href="{json_file}" class="json-link" download>JSON</a>
-                {f'''<div class="info-button">
+                {f'''<div class="info-button" onclick="toggleInfoModal()">
                     Info
                     <div class="info-tooltip">{html.escape(info_text)}</div>
                 </div>''' if info_text else ''}
@@ -469,6 +518,15 @@ def generate_html(messages, extract_dir, output_file, info_text=None):
                 <i id="theme-icon">🌙</i>
             </button>
         </div>
+        
+        {f'''<div id="info-modal" class="modal">
+            <div class="modal-content">
+                <span class="close-button" onclick="closeInfoModal()">&times;</span>
+                <h2>Chat Information</h2>
+                <div class="modal-body">{html.escape(info_text)}</div>
+            </div>
+        </div>''' if info_text else ''}
+        
         <div class="chat-messages">
 """
 
@@ -575,6 +633,28 @@ def generate_html(messages, extract_dir, output_file, info_text=None):
             }
         }
         
+        function toggleInfoModal() {
+            const modal = document.getElementById('info-modal');
+            if (modal) {
+                modal.style.display = 'block';
+            }
+        }
+        
+        function closeInfoModal() {
+            const modal = document.getElementById('info-modal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+        
+        // Close modal when clicking outside of it
+        window.onclick = function(event) {
+            const modal = document.getElementById('info-modal');
+            if (modal && event.target === modal) {
+                modal.style.display = 'none';
+            }
+        };
+        
         // Check for saved theme preference
         document.addEventListener('DOMContentLoaded', () => {
             const savedTheme = localStorage.getItem('theme');
@@ -596,12 +676,21 @@ def generate_html(messages, extract_dir, output_file, info_text=None):
     print(f"Generated HTML file: {output_file}")
 
 def main():
-    # Get input from user
-    zip_path = input("Enter path to WhatsApp export zip file: ")
+    # Set up command line argument parsing
+    parser = argparse.ArgumentParser(description='Convert WhatsApp chat export to HTML and JSON')
+    parser.add_argument('zip_path', nargs='?', help='Path to WhatsApp export zip file')
+    parser.add_argument('-o', '--output-dir', help='Output directory (default: ./html)', default='html')
+    
+    args = parser.parse_args()
+    
+    # Get input from user if not provided as argument
+    zip_path = args.zip_path
+    if not zip_path:
+        zip_path = input("Enter path to WhatsApp export zip file: ")
     
     # Define paths
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    extract_dir = os.path.join(script_dir, "html")
+    extract_dir = os.path.join(script_dir, args.output_dir)
     output_html = os.path.join(extract_dir, "whatsapp_chat.html")
     output_json = os.path.join(extract_dir, "whatsapp_chat.json")
     
