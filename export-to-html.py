@@ -4,8 +4,8 @@ import re
 from pathlib import Path
 
 # Unzip the provided file
-zip_path = '/mnt/data/WhatsApp Chat - Quartier Gare - sécurité & propreté.zip'
-unzip_folder = '/mnt/data/unzipped_chat'
+zip_path = './export.zip'
+unzip_folder = './unzipped_chat'
 os.makedirs(unzip_folder, exist_ok=True)
 
 with zipfile.ZipFile(zip_path, 'r') as zip_ref:
