@@ -104,6 +104,48 @@ def generate_html(messages, extract_dir, output_file):
     """Generate a nice HTML page from the parsed messages."""
     # Create CSS styles
     css = """
+    :root {
+        --bg-color: #f0f0f0;
+        --container-bg: #fff;
+        --header-bg: #128C7E;
+        --header-color: white;
+        --message-user-bg: #DCF8C6;
+        --message-other-bg: #FFFFFF;
+        --message-other-border: #E2E2E2;
+        --message-system-bg: #f1f1f1;
+        --message-system-color: #666;
+        --sender-color: #128C7E;
+        --time-color: #999;
+        --placeholder-bg: #f1f1f1;
+        --placeholder-color: #555;
+        --link-color: #128C7E;
+        --date-color: #666;
+        --date-line-color: #e0e0e0;
+        --text-color: #000;
+        --container-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    
+    [data-theme="dark"] {
+        --bg-color: #121212;
+        --container-bg: #1e1e1e;
+        --header-bg: #075E54;
+        --header-color: white;
+        --message-user-bg: #056162;
+        --message-other-bg: #2a2a2a;
+        --message-other-border: #333;
+        --message-system-bg: #2a2a2a;
+        --message-system-color: #aaa;
+        --sender-color: #25D366;
+        --time-color: #808080;
+        --placeholder-bg: #2a2a2a;
+        --placeholder-color: #aaa;
+        --link-color: #25D366;
+        --date-color: #aaa;
+        --date-line-color: #333;
+        --text-color: #e0e0e0;
+        --container-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    }
+    
     * {
         box-sizing: border-box;
         margin: 0;
@@ -112,24 +154,52 @@ def generate_html(messages, extract_dir, output_file):
     }
     
     body {
-        background-color: #f0f0f0;
+        background-color: var(--bg-color);
         padding: 20px;
+        color: var(--text-color);
+        transition: background-color 0.3s ease;
     }
     
     .chat-container {
         max-width: 800px;
         margin: 0 auto;
-        background-color: #fff;
+        background-color: var(--container-bg);
         border-radius: 10px;
         overflow: hidden;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        box-shadow: var(--container-shadow);
+        transition: background-color 0.3s ease, box-shadow 0.3s ease;
     }
     
     .chat-header {
-        background-color: #128C7E;
-        color: white;
+        background-color: var(--header-bg);
+        color: var(--header-color);
         padding: 15px;
         text-align: center;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: background-color 0.3s ease;
+    }
+    
+    .theme-toggle {
+        background: none;
+        border: none;
+        color: var(--header-color);
+        cursor: pointer;
+        font-size: 1.2em;
+        display: flex;
+        align-items: center;
+        padding: 5px;
+        border-radius: 50%;
+        transition: background-color 0.2s;
+    }
+    
+    .theme-toggle:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+    
+    .theme-toggle i {
+        font-style: normal;
     }
     
     .chat-messages {
@@ -146,23 +216,24 @@ def generate_html(messages, extract_dir, output_file):
         position: relative;
         max-width: 75%;
         word-wrap: break-word;
+        transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
     }
     
     .message.user {
         align-self: flex-end;
-        background-color: #DCF8C6;
+        background-color: var(--message-user-bg);
     }
     
     .message.other {
         align-self: flex-start;
-        background-color: #FFFFFF;
-        border: 1px solid #E2E2E2;
+        background-color: var(--message-other-bg);
+        border: 1px solid var(--message-other-border);
     }
     
     .message.system {
         align-self: center;
-        background-color: #f1f1f1;
-        color: #666;
+        background-color: var(--message-system-bg);
+        color: var(--message-system-color);
         font-style: italic;
         max-width: 90%;
         text-align: center;
@@ -171,14 +242,16 @@ def generate_html(messages, extract_dir, output_file):
     .message-sender {
         font-weight: bold;
         margin-bottom: 3px;
-        color: #128C7E;
+        color: var(--sender-color);
+        transition: color 0.3s ease;
     }
     
     .message-time {
-        color: #999;
+        color: var(--time-color);
         font-size: 0.7em;
         margin-top: 5px;
         text-align: right;
+        transition: color 0.3s ease;
     }
     
     .message-content {
@@ -204,15 +277,17 @@ def generate_html(messages, extract_dir, output_file):
     
     .media-placeholder {
         padding: 10px;
-        background-color: #f1f1f1;
+        background-color: var(--placeholder-bg);
         border-radius: 5px;
-        color: #555;
+        color: var(--placeholder-color);
         font-style: italic;
+        transition: background-color 0.3s ease, color 0.3s ease;
     }
     
     a {
-        color: #128C7E;
+        color: var(--link-color);
         text-decoration: none;
+        transition: color 0.3s ease;
     }
     
     a:hover {
@@ -222,19 +297,21 @@ def generate_html(messages, extract_dir, output_file):
     .date-separator {
         text-align: center;
         margin: 15px 0;
-        color: #666;
+        color: var(--date-color);
         font-size: 0.8em;
         position: relative;
+        transition: color 0.3s ease;
     }
     
     .date-separator:before, .date-separator:after {
         content: "";
         display: inline-block;
         height: 1px;
-        background-color: #e0e0e0;
+        background-color: var(--date-line-color);
         width: 35%;
         vertical-align: middle;
         margin: 0 10px;
+        transition: background-color 0.3s ease;
     }
     """
     
@@ -251,6 +328,9 @@ def generate_html(messages, extract_dir, output_file):
     <div class="chat-container">
         <div class="chat-header">
             <h1>WhatsApp Chat</h1>
+            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark/light mode">
+                <i id="theme-icon">🌙</i>
+            </button>
         </div>
         <div class="chat-messages">
 """
@@ -341,6 +421,34 @@ def generate_html(messages, extract_dir, output_file):
     # Close the HTML document
     html_content += """        </div>
     </div>
+    
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const themeIcon = document.getElementById('theme-icon');
+            
+            if (html.getAttribute('data-theme') === 'dark') {
+                html.removeAttribute('data-theme');
+                themeIcon.textContent = '🌙'; // moon icon
+                localStorage.setItem('theme', 'light');
+            } else {
+                html.setAttribute('data-theme', 'dark');
+                themeIcon.textContent = '☀️'; // sun icon
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+        
+        // Check for saved theme preference
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('theme');
+            const themeIcon = document.getElementById('theme-icon');
+            
+            if (savedTheme === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                themeIcon.textContent = '☀️'; // sun icon
+            }
+        });
+    </script>
 </body>
 </html>"""
     
