@@ -161,7 +161,7 @@ def find_media_file(extract_dir, filename):
     
     return None
 
-def generate_html(messages, extract_dir, output_file, info_text=None):
+def generate_html(messages, extract_dir, output_file, info_text=None, chat_title="WhatsApp Chat"):
     """Generate a nice HTML page from the parsed messages."""
     # Get relative path to JSON file
     json_file = os.path.basename(output_file).replace('.html', '.json')
@@ -500,14 +500,14 @@ def generate_html(messages, extract_dir, output_file, info_text=None):
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WhatsApp Chat Export</title>
+    <title>{html.escape(chat_title)}</title>
     <style>{css}</style>
 </head>
 <body>
     <div class="chat-container">
         <div class="chat-header">
             <div class="chat-title">
-                <h1>WhatsApp Chat</h1>
+                <h1>{html.escape(chat_title)}</h1>
                 <a href="{json_file}" class="json-link" download>JSON</a>
                 {f'''<div class="info-button" onclick="toggleInfoModal()">
                     Info
@@ -706,17 +706,26 @@ def main():
         
         # Check if there's an info.txt file
         info_text = None
+        chat_title = "WhatsApp Chat"
         info_file = find_info_file(extract_dir)
         if info_file:
             try:
                 with open(info_file, 'r', encoding='utf-8') as f:
                     info_text = f.read()
+                    
+                    # Check if the first line starts with "Title:" and extract the title
+                    lines = info_text.splitlines()
+                    if lines and lines[0].startswith("Title:"):
+                        chat_title = lines[0][6:].strip()
+                        
                 print(f"Found info.txt file: {info_file}")
+                if chat_title != "WhatsApp Chat":
+                    print(f"Using custom chat title: {chat_title}")
             except Exception as e:
                 print(f"Warning: Found info.txt but couldn't read it: {e}")
         
         # Generate both HTML and JSON outputs
-        generate_html(messages, extract_dir, output_html, info_text)
+        generate_html(messages, extract_dir, output_html, info_text, chat_title)
         export_json(messages, output_json)
         
         print("\nProcessing complete!")
