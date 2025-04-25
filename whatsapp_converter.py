@@ -3,6 +3,7 @@ import re
 import zipfile
 import html
 import shutil
+import json
 from datetime import datetime
 from pathlib import Path
 
@@ -100,8 +101,61 @@ def parse_chat(chat_file_path):
     
     return messages
 
+def export_json(messages, output_file):
+    """Export the parsed messages to a JSON file."""
+    # Create a serializable version of the messages
+    json_data = []
+    for message in messages:
+        # Convert timestamp to a consistent format
+        timestamp = datetime.strptime(message['timestamp'], '%d/%m/%Y, %H:%M:%S')
+        
+        # Create a serializable message object
+        msg_obj = {
+            'timestamp': message['timestamp'],
+            'timestamp_iso': timestamp.isoformat(),
+            'sender': message['sender'],
+            'content': message['content'],
+            'media': []
+        }
+        
+        # Add media files
+        for media in message['media']:
+            media_obj = {
+                'type': media['type'],
+                'file': media['file']
+            }
+            msg_obj['media'].append(media_obj)
+        
+        json_data.append(msg_obj)
+    
+    # Write the JSON file with proper formatting and encoding
+    with open(output_file, 'w', encoding='utf-8') as f:
+        json.dump(json_data, f, ensure_ascii=False, indent=2)
+    
+    print(f"Generated JSON file: {output_file}")
+
+def find_media_file(extract_dir, filename):
+    """Find a media file in the extract directory."""
+    for root, _, files in os.walk(extract_dir):
+        if filename in files:
+            return os.path.join(root, filename)
+    
+    # Try alternative approaches - some WhatsApp exports use different naming patterns
+    file_id, file_type, *date_parts = filename.split('-')
+    
+    # Try matching just by the file ID and type
+    for root, _, files in os.walk(extract_dir):
+        for file in files:
+            if file.startswith(file_id) and file_type.lower() in file.lower():
+                return os.path.join(root, file)
+    
+    return None
+
 def generate_html(messages, extract_dir, output_file):
     """Generate a nice HTML page from the parsed messages."""
+    # Get relative path to JSON file
+    json_file = os.path.basename(output_file).replace('.html', '.json')
+    
     # Create CSS styles
     css = """
     :root {
@@ -179,6 +233,29 @@ def generate_html(messages, extract_dir, output_file):
         justify-content: space-between;
         align-items: center;
         transition: background-color 0.3s ease;
+    }
+    
+    .chat-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .json-link {
+        font-size: 0.8em;
+        color: rgba(255, 255, 255, 0.8);
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 8px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 4px;
+        transition: background-color 0.2s;
+    }
+    
+    .json-link:hover {
+        background: rgba(255, 255, 255, 0.3);
+        text-decoration: none;
     }
     
     .theme-toggle {
@@ -327,7 +404,10 @@ def generate_html(messages, extract_dir, output_file):
 <body>
     <div class="chat-container">
         <div class="chat-header">
-            <h1>WhatsApp Chat</h1>
+            <div class="chat-title">
+                <h1>WhatsApp Chat</h1>
+                <a href="{json_file}" class="json-link" download>JSON</a>
+            </div>
             <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark/light mode">
                 <i id="theme-icon">🌙</i>
             </button>
@@ -458,23 +538,6 @@ def generate_html(messages, extract_dir, output_file):
     
     print(f"Generated HTML file: {output_file}")
 
-def find_media_file(extract_dir, filename):
-    """Find a media file in the extract directory."""
-    for root, _, files in os.walk(extract_dir):
-        if filename in files:
-            return os.path.join(root, filename)
-    
-    # Try alternative approaches - some WhatsApp exports use different naming patterns
-    file_id, file_type, *date_parts = filename.split('-')
-    
-    # Try matching just by the file ID and type
-    for root, _, files in os.walk(extract_dir):
-        for file in files:
-            if file.startswith(file_id) and file_type.lower() in file.lower():
-                return os.path.join(root, file)
-    
-    return None
-
 def main():
     # Get input from user
     zip_path = input("Enter path to WhatsApp export zip file: ")
@@ -482,7 +545,8 @@ def main():
     # Define paths
     script_dir = os.path.dirname(os.path.abspath(__file__))
     extract_dir = os.path.join(script_dir, "html")
-    output_file = os.path.join(extract_dir, "whatsapp_chat.html")
+    output_html = os.path.join(extract_dir, "whatsapp_chat.html")
+    output_json = os.path.join(extract_dir, "whatsapp_chat.json")
     
     # Clean any existing extract directory
     if os.path.exists(extract_dir):
@@ -493,10 +557,14 @@ def main():
         extract_zip(zip_path, extract_dir)
         chat_file = find_chat_file(extract_dir)
         messages = parse_chat(chat_file)
-        generate_html(messages, extract_dir, output_file)
+        
+        # Generate both HTML and JSON outputs
+        generate_html(messages, extract_dir, output_html)
+        export_json(messages, output_json)
         
         print("\nProcessing complete!")
-        print(f"Open {output_file} in your web browser to view the chat.")
+        print(f"Open {output_html} in your web browser to view the chat.")
+        print(f"JSON data available at: {output_json}")
     
     except Exception as e:
         print(f"Error: {e}")
