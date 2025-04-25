@@ -1,30 +1,21 @@
 import os
 import zipfile
+import shutil
 import re
 from pathlib import Path
 
 # Unzip the provided file
 zip_path = './export.zip'
-unzip_folder = './unzipped_chat'
-os.makedirs(unzip_folder, exist_ok=True)
-
-with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-    zip_ref.extractall(unzip_folder)
-
-# Locate the _chat.txt file
-chat_file_path = None
-for root, dirs, files in os.walk(unzip_folder):
-    for file in files:
-        if file.lower() == '_chat.txt':
-            chat_file_path = os.path.join(root, file)
-            break
-
-if not chat_file_path:
-    raise FileNotFoundError("_chat.txt not found in the ZIP archive.")
-
-# Create output HTML folder
 html_output_folder = './html'
 os.makedirs(html_output_folder, exist_ok=True)
+
+with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+    zip_ref.extractall(html_output_folder)
+
+# Locate the _chat.txt file
+chat_file_path = os.path.join(html_output_folder, '_chat.txt')
+if not os.path.exists(chat_file_path):
+    raise FileNotFoundError("_chat.txt not found in the extracted content.")
 
 # Load the chat text
 with open(chat_file_path, 'r', encoding='utf-8') as f:
@@ -70,11 +61,11 @@ for line in chat_text:
         for ext in media_extensions:
             if ext in message.lower():
                 media_filename = message.strip()
-                media_rel_path = os.path.relpath(os.path.join(root, media_filename), unzip_folder)
-                if ext in ['.jpg', '.jpeg', '.png', '.gif']:
-                    html_content.append(f'<img src="{media_rel_path}" alt="Media">')
-                elif ext in ['.mp4', '.webm']:
-                    html_content.append(f'<video controls><source src="{media_rel_path}" type="video/{ext[1:]}"></video>')
+                if os.path.exists(os.path.join(html_output_folder, media_filename)):
+                    if ext in ['.jpg', '.jpeg', '.png', '.gif']:
+                        html_content.append(f'<img src="{media_filename}" alt="Media">')
+                    elif ext in ['.mp4', '.webm']:
+                        html_content.append(f'<video controls><source src="{media_filename}" type="video/{ext[1:]}"></video>')
 
 html_content.append("""
 </body>
@@ -85,6 +76,9 @@ html_content.append("""
 html_file_path = os.path.join(html_output_folder, 'chat.html')
 with open(html_file_path, 'w', encoding='utf-8') as f:
     f.writelines(html_content)
+
+# Remove _chat.txt
+os.remove(chat_file_path)
 
 print(f"Static HTML representation created at {html_file_path}")
 
