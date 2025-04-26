@@ -643,10 +643,10 @@ def generate_html(messages, extract_dir, output_file, info_text=None, chat_title
             }
         }
         
-        function toggleChatOrder() {
+        // Apply initial reverse-chronological ordering to the chat
+        function applyReverseChronological() {
             const chatMessages = document.querySelector('.chat-messages');
             const orderIcon = document.getElementById('order-icon');
-            const currentOrder = localStorage.getItem('chatOrder') || 'reverse-chronological'; // Default to reverse now
             
             // Convert children to array for easier manipulation
             const messagesArray = Array.from(chatMessages.children);
@@ -682,50 +682,30 @@ def generate_html(messages, extract_dir, output_file, info_text=None, chat_title
             // Clear the current content
             chatMessages.innerHTML = '';
             
-            if (currentOrder === 'chronological') {
-                // Reverse the order of date groups
-                dateGroups.reverse();
-                
-                // For each date group, add the date separator and then the messages in reverse order
-                dateGroups.forEach(group => {
-                    chatMessages.appendChild(group.dateSeparator);
-                    group.messages.reverse().forEach(message => {
-                        chatMessages.appendChild(message);
-                    });
+            // Reverse the order of date groups (newest dates first)
+            dateGroups.reverse();
+            
+            // For each date group, add the date separator and then the messages (keep message order within each day)
+            dateGroups.forEach(group => {
+                chatMessages.appendChild(group.dateSeparator);
+                group.messages.forEach(message => {
+                    chatMessages.appendChild(message);
                 });
-                
-                orderIcon.textContent = '⏬'; // Down arrow
-                localStorage.setItem('chatOrder', 'reverse-chronological');
-            } else {
-                // Restore chronological order
-                dateGroups.reverse();
-                
-                dateGroups.forEach(group => {
-                    chatMessages.appendChild(group.dateSeparator);
-                    group.messages.reverse().forEach(message => {
-                        chatMessages.appendChild(message);
-                    });
-                });
-                
-                orderIcon.textContent = '⏫'; // Up arrow
-                localStorage.setItem('chatOrder', 'chronological');
-            }
+            });
+            
+            // Set icon to down arrow
+            orderIcon.textContent = '⏬';
+            // Save preference
+            localStorage.setItem('chatOrder', 'reverse-chronological');
         }
         
-        // Function to set initial chat order
-        function setInitialChatOrder() {
+        function toggleChatOrder() {
             const chatMessages = document.querySelector('.chat-messages');
             const orderIcon = document.getElementById('order-icon');
-            const savedOrder = localStorage.getItem('chatOrder');
+            const currentOrder = localStorage.getItem('chatOrder') || 'reverse-chronological'; // Default is reverse
             
-            // If no saved preference, set to reverse chronological by default
-            if (!savedOrder) {
-                localStorage.setItem('chatOrder', 'reverse-chronological');
-            }
-            
-            // If we want reverse chronological (either by default or saved preference)
-            if (!savedOrder || savedOrder === 'reverse-chronological') {
-                // Directly manipulate the DOM instead of toggling
+            if (currentOrder === 'reverse-chronological') {
+                // Switch to chronological (oldest first)
                 const messagesArray = Array.from(chatMessages.children);
                 
                 // Get date separators and their corresponding messages
@@ -759,20 +739,40 @@ def generate_html(messages, extract_dir, output_file, info_text=None, chat_title
                 // Clear the current content
                 chatMessages.innerHTML = '';
                 
-                // Reverse the order of date groups
+                // Reverse the date groups back to chronological
                 dateGroups.reverse();
                 
-                // For each date group, add the date separator and then the messages in reverse order
+                // Add each date and its messages
                 dateGroups.forEach(group => {
                     chatMessages.appendChild(group.dateSeparator);
-                    group.messages.reverse().forEach(message => {
+                    group.messages.forEach(message => {
                         chatMessages.appendChild(message);
                     });
                 });
                 
-                // Set the icon to show we're in reverse-chronological mode
-                orderIcon.textContent = '⏬'; // Down arrow
+                // Update icon and save preference
+                orderIcon.textContent = '⏫'; // Up arrow
+                localStorage.setItem('chatOrder', 'chronological');
+            } else {
+                // Switch back to reverse-chronological (newest first)
+                applyReverseChronological();
             }
+        }
+        
+        // Function to set initial chat order
+        function setInitialChatOrder() {
+            // By default, we want reverse chronological (newest first)
+            // But we'll respect any saved preference
+            const savedOrder = localStorage.getItem('chatOrder');
+            
+            if (!savedOrder) {
+                // If no preference saved, default to reverse chronological
+                applyReverseChronological();
+            } else if (savedOrder === 'reverse-chronological') {
+                // If preference is reverse, ensure it's applied
+                applyReverseChronological();
+            }
+            // If preference is chronological, do nothing as that's the initial state
         }
         
         function toggleInfoModal() {
