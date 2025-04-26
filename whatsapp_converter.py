@@ -41,13 +41,20 @@ def parse_chat(chat_file_path):
     with open(chat_file_path, 'r', encoding='utf-8') as f:
         lines = f.readlines()
     
-    # Regular expressions for parsing
-    # Matches timestamps like [16/04/2024, 11:59:24]
-    timestamp_pattern = r'^\[(\d{2}/\d{2}/\d{4}, \d{2}:\d{2}:\d{2})\]'
-    # Matches media attachments like <attached: 00000179-PHOTO-2024-04-24-16-21-11.jpg>
-    attachment_pattern = r'<attached: (\d+-\w+-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.\w+)>'
-    # Matches "image omitted" or "video omitted" placeholders
-    omitted_pattern = r'(image|video|audio|document|GIF) omitted'
+    # Regular expressions for parsing different WhatsApp export formats
+    
+    # Format 1: Desktop export with brackets [DD/MM/YYYY, HH:MM:SS]
+    # Format 2: Mobile export with no brackets DD/MM/YY, HH:MM
+    timestamp_pattern = r'^\[?(\d{1,2}/\d{1,2}/\d{2,4},\s\d{1,2}:\d{1,2}(?::\d{1,2})?)\]?'
+    
+    # Matches media attachments like <attached: 00000179-PHOTO-2025-04-24-16-21-11.jpg>
+    # or VID-20230822-WA0001.mp4 (file attached)
+    attachment_pattern_1 = r'<attached:\s(\d+-\w+-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.\w+)>'
+    attachment_pattern_2 = r'([\w-]+\.(?:mp4|jpg|jpeg|png|gif|pdf|doc|docx|xls|xlsx|ppt|pptx))\s\(file attached\)'
+    
+    # Matches "image omitted", "<Media omitted>", etc.
+    omitted_pattern_1 = r'(?:image|video|audio|document|GIF)\s+omitted'
+    omitted_pattern_2 = r'<Media omitted>'
     
     messages = []
     current_message = None
@@ -66,7 +73,21 @@ def parse_chat(chat_file_path):
             
             # Extract timestamp and message content
             timestamp_str = timestamp_match.group(1)
+            
+            # Remove brackets if present
+            if timestamp_str.startswith('['):
+                timestamp_str = timestamp_str[1:]
+            if timestamp_str.endswith(']'):
+                timestamp_str = timestamp_str[:-1]
+                
             message_content = line[timestamp_match.end():].strip()
+            
+            # For desktop format, content starts with a colon
+            # For mobile format, it starts with a dash
+            if message_content.startswith(' - '):
+                message_content = message_content[3:]
+            elif message_content.startswith(':'):
+                message_content = message_content[1:].strip()
             
             # Split the sender from the content
             parts = message_content.split(':', 1)
@@ -86,17 +107,42 @@ def parse_chat(chat_file_path):
             }
         elif current_message:
             # This line is a continuation of the previous message or a media item
-            attachment_match = re.search(attachment_pattern, line)
-            omitted_match = re.search(omitted_pattern, line)
+            attachment_match_1 = re.search(attachment_pattern_1, line)
+            attachment_match_2 = re.search(attachment_pattern_2, line)
+            omitted_match_1 = re.search(omitted_pattern_1, line)
+            omitted_match_2 = re.search(omitted_pattern_2, line)
             
-            if attachment_match:
-                media_file = attachment_match.group(1)
+            if attachment_match_1:
+                media_file = attachment_match_1.group(1)
+                media_type = media_file.split('-')[1].lower()
                 current_message['media'].append({
-                    'type': media_file.split('-')[1].lower(),
+                    'type': media_type,
                     'file': media_file
                 })
-            elif omitted_match:
-                media_type = omitted_match.group(1).lower()
+            elif attachment_match_2:
+                media_file = attachment_match_2.group(1)
+                # Determine type from extension
+                extension = media_file.split('.')[-1].lower()
+                if extension in ['jpg', 'jpeg', 'png', 'gif']:
+                    media_type = 'photo'
+                elif extension in ['mp4', 'mov', 'avi']:
+                    media_type = 'video'
+                elif extension in ['mp3', 'wav', 'ogg']:
+                    media_type = 'audio'
+                else:
+                    media_type = 'document'
+                
+                current_message['media'].append({
+                    'type': media_type,
+                    'file': media_file
+                })
+            elif omitted_match_1 or omitted_match_2:
+                # Determine media type
+                if omitted_match_1:
+                    media_type = omitted_match_1.group(0).split()[0].lower()
+                else:
+                    media_type = 'media'  # Generic type for <Media omitted>
+                
                 current_message['media'].append({
                     'type': media_type,
                     'file': None  # No file available
@@ -111,18 +157,52 @@ def parse_chat(chat_file_path):
     
     return messages
 
+def parse_timestamp(timestamp_str):
+    """Parse timestamp string into a datetime object, handling multiple formats."""
+    # Remove any brackets if present
+    timestamp_str = timestamp_str.strip()
+    if timestamp_str.startswith('['):
+        timestamp_str = timestamp_str[1:]
+    if timestamp_str.endswith(']'):
+        timestamp_str = timestamp_str[:-1]
+    
+    # Try different formats
+    formats = [
+        '%d/%m/%Y, %H:%M:%S',  # Desktop format: 16/04/2024, 11:59:24
+        '%d/%m/%Y, %H:%M',     # Desktop format without seconds
+        '%m/%d/%y, %H:%M',     # US mobile format: 8/22/23, 10:33
+        '%d/%m/%y, %H:%M',     # European mobile format: 22/8/23, 10:33
+        '%d/%m/%y, %H:%M:%S',  # European mobile format with seconds
+        '%m/%d/%Y, %H:%M',     # US format with 4-digit year
+        '%m/%d/%Y, %H:%M:%S'   # US format with 4-digit year and seconds
+    ]
+    
+    for fmt in formats:
+        try:
+            return datetime.strptime(timestamp_str, fmt)
+        except ValueError:
+            continue
+    
+    # If all formats fail, raise an error with the timestamp that caused problems
+    raise ValueError(f"Could not parse timestamp: '{timestamp_str}'")
+
 def export_json(messages, output_file):
     """Export the parsed messages to a JSON file."""
     # Create a serializable version of the messages
     json_data = []
     for message in messages:
         # Convert timestamp to a consistent format
-        timestamp = datetime.strptime(message['timestamp'], '%d/%m/%Y, %H:%M:%S')
+        try:
+            timestamp = parse_timestamp(message['timestamp'])
+            timestamp_iso = timestamp.isoformat()
+        except ValueError as e:
+            print(f"Warning: {e}. Using original timestamp string.")
+            timestamp_iso = message['timestamp']
         
         # Create a serializable message object
         msg_obj = {
             'timestamp': message['timestamp'],
-            'timestamp_iso': timestamp.isoformat(),
+            'timestamp_iso': timestamp_iso,
             'sender': message['sender'],
             'content': message['content'],
             'media': []
@@ -544,9 +624,15 @@ def generate_html(messages, extract_dir, output_file, info_text=None, chat_title
     
     for message in messages:
         # Parse and format the timestamp
-        timestamp = datetime.strptime(message['timestamp'], '%d/%m/%Y, %H:%M:%S')
-        message_date = timestamp.strftime('%d %B %Y')
-        message_time = timestamp.strftime('%H:%M')
+        try:
+            timestamp = parse_timestamp(message['timestamp'])
+            message_date = timestamp.strftime('%d %B %Y')
+            message_time = timestamp.strftime('%H:%M')
+        except ValueError as e:
+            print(f"Warning when formatting date for display: {e}")
+            # Fallback for unparseable dates - use the original string
+            message_date = message['timestamp'].split(',')[0].strip()
+            message_time = message['timestamp'].split(',')[1].strip() if ',' in message['timestamp'] else ""
         
         # Add date separator if it's a new day
         if message_date != current_date:
@@ -643,10 +729,10 @@ def generate_html(messages, extract_dir, output_file, info_text=None, chat_title
             }
         }
         
-        // Apply initial reverse-chronological ordering to the chat
-        function applyReverseChronological() {
+        function toggleChatOrder() {
             const chatMessages = document.querySelector('.chat-messages');
             const orderIcon = document.getElementById('order-icon');
+            const currentOrder = localStorage.getItem('chatOrder') || 'reverse-chronological'; // Default to reverse now
             
             // Convert children to array for easier manipulation
             const messagesArray = Array.from(chatMessages.children);
@@ -682,30 +768,50 @@ def generate_html(messages, extract_dir, output_file, info_text=None, chat_title
             // Clear the current content
             chatMessages.innerHTML = '';
             
-            // Reverse the order of date groups (newest dates first)
-            dateGroups.reverse();
-            
-            // For each date group, add the date separator and then the messages (keep message order within each day)
-            dateGroups.forEach(group => {
-                chatMessages.appendChild(group.dateSeparator);
-                group.messages.forEach(message => {
-                    chatMessages.appendChild(message);
+            if (currentOrder === 'chronological') {
+                // Reverse the order of date groups
+                dateGroups.reverse();
+                
+                // For each date group, add the date separator and then the messages in reverse order
+                dateGroups.forEach(group => {
+                    chatMessages.appendChild(group.dateSeparator);
+                    group.messages.reverse().forEach(message => {
+                        chatMessages.appendChild(message);
+                    });
                 });
-            });
-            
-            // Set icon to down arrow
-            orderIcon.textContent = '⏬';
-            // Save preference
-            localStorage.setItem('chatOrder', 'reverse-chronological');
+                
+                orderIcon.textContent = '⏬'; // Down arrow
+                localStorage.setItem('chatOrder', 'reverse-chronological');
+            } else {
+                // Restore chronological order
+                dateGroups.reverse();
+                
+                dateGroups.forEach(group => {
+                    chatMessages.appendChild(group.dateSeparator);
+                    group.messages.reverse().forEach(message => {
+                        chatMessages.appendChild(message);
+                    });
+                });
+                
+                orderIcon.textContent = '⏫'; // Up arrow
+                localStorage.setItem('chatOrder', 'chronological');
+            }
         }
         
-        function toggleChatOrder() {
+        // Function to set initial chat order
+        function setInitialChatOrder() {
             const chatMessages = document.querySelector('.chat-messages');
             const orderIcon = document.getElementById('order-icon');
-            const currentOrder = localStorage.getItem('chatOrder') || 'reverse-chronological'; // Default is reverse
+            const savedOrder = localStorage.getItem('chatOrder');
             
-            if (currentOrder === 'reverse-chronological') {
-                // Switch to chronological (oldest first)
+            // If no saved preference, set to reverse chronological by default
+            if (!savedOrder) {
+                localStorage.setItem('chatOrder', 'reverse-chronological');
+            }
+            
+            // If we want reverse chronological (either by default or saved preference)
+            if (!savedOrder || savedOrder === 'reverse-chronological') {
+                // Directly manipulate the DOM instead of toggling
                 const messagesArray = Array.from(chatMessages.children);
                 
                 // Get date separators and their corresponding messages
@@ -739,40 +845,20 @@ def generate_html(messages, extract_dir, output_file, info_text=None, chat_title
                 // Clear the current content
                 chatMessages.innerHTML = '';
                 
-                // Reverse the date groups back to chronological
+                // Reverse the order of date groups
                 dateGroups.reverse();
                 
-                // Add each date and its messages
+                // For each date group, add the date separator and then the messages in reverse order
                 dateGroups.forEach(group => {
                     chatMessages.appendChild(group.dateSeparator);
-                    group.messages.forEach(message => {
+                    group.messages.reverse().forEach(message => {
                         chatMessages.appendChild(message);
                     });
                 });
                 
-                // Update icon and save preference
-                orderIcon.textContent = '⏫'; // Up arrow
-                localStorage.setItem('chatOrder', 'chronological');
-            } else {
-                // Switch back to reverse-chronological (newest first)
-                applyReverseChronological();
+                // Set the icon to show we're in reverse-chronological mode
+                orderIcon.textContent = '⏬'; // Down arrow
             }
-        }
-        
-        // Function to set initial chat order
-        function setInitialChatOrder() {
-            // By default, we want reverse chronological (newest first)
-            // But we'll respect any saved preference
-            const savedOrder = localStorage.getItem('chatOrder');
-            
-            if (!savedOrder) {
-                // If no preference saved, default to reverse chronological
-                applyReverseChronological();
-            } else if (savedOrder === 'reverse-chronological') {
-                // If preference is reverse, ensure it's applied
-                applyReverseChronological();
-            }
-            // If preference is chronological, do nothing as that's the initial state
         }
         
         function toggleInfoModal() {
