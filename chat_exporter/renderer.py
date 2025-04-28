@@ -3,6 +3,7 @@
 import html
 import re
 import os
+import logging
 from typing import List, Dict, Any, Optional
 
 from .media import find_media_file
@@ -34,6 +35,10 @@ def generate_css() -> str:
         --date-line-color: #e0e0e0;
         --text-color: #000;
         --container-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        --new-message-subtle: rgba(255, 252, 127, 0.2);
+        --new-message-prominent: rgba(255, 252, 127, 0.5);
+        --new-message-border: rgba(255, 193, 7, 0.5);
+        --new-message-indicator: #FFC107;
     }
     
     [data-theme="dark"] {
@@ -55,6 +60,10 @@ def generate_css() -> str:
         --date-line-color: #333;
         --text-color: #e0e0e0;
         --container-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        --new-message-subtle: rgba(255, 252, 127, 0.15);
+        --new-message-prominent: rgba(255, 252, 127, 0.25);
+        --new-message-border: rgba(255, 193, 7, 0.4);
+        --new-message-indicator: #FFC107;
     }
     
     * {
@@ -344,6 +353,52 @@ def generate_css() -> str:
         margin: 0 10px;
         transition: background-color 0.3s ease;
     }
+    
+    /* New message highlighting */
+    .message.new-message-subtle {
+        position: relative;
+        background-color: var(--new-message-subtle);
+        border: 1px solid var(--new-message-border);
+    }
+    
+    .message.new-message-prominent {
+        position: relative;
+        background-color: var(--new-message-prominent);
+        border: 1px solid var(--new-message-border);
+        animation: pulse-highlight 2s infinite;
+    }
+    
+    .message.new-message-subtle::after,
+    .message.new-message-prominent::after {
+        content: "NEW";
+        position: absolute;
+        top: -8px;
+        right: 10px;
+        background-color: var(--new-message-indicator);
+        color: #000;
+        font-size: 10px;
+        padding: 1px 5px;
+        border-radius: 8px;
+        font-weight: bold;
+    }
+    
+    .new-messages-indicator {
+        background-color: var(--header-bg);
+        color: white;
+        text-align: center;
+        padding: 5px;
+        font-weight: bold;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    }
+    
+    @keyframes pulse-highlight {
+        0% { box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.4); }
+        70% { box-shadow: 0 0 0 5px rgba(255, 193, 7, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(255, 193, 7, 0); }
+    }
     """
 
 def generate_javascript() -> str:
@@ -365,6 +420,54 @@ def generate_javascript() -> str:
                 html.setAttribute('data-theme', 'dark');
                 themeIcon.textContent = '☀️'; // sun icon
                 localStorage.setItem('theme', 'dark');
+            }
+        }
+        
+        // Function to scroll to the first new message
+        function scrollToFirstNewMessage() {
+            const newMessages = document.querySelectorAll('.new-message-subtle, .new-message-prominent');
+            if (newMessages.length > 0) {
+                newMessages[0].scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                });
+                
+                // Add visual indicator
+                const indicator = document.createElement('div');
+                indicator.className = 'new-messages-indicator';
+                indicator.textContent = `${newMessages.length} new messages`;
+                
+                const chatMessages = document.querySelector('.chat-messages');
+                chatMessages.insertBefore(indicator, chatMessages.firstChild);
+                
+                // Add a close button to the indicator
+                const closeButton = document.createElement('span');
+                closeButton.innerHTML = ' &times;';
+                closeButton.style.cursor = 'pointer';
+                closeButton.style.float = 'right';
+                closeButton.style.marginRight = '10px';
+                closeButton.onclick = function() {
+                    indicator.style.display = 'none';
+                };
+                indicator.appendChild(closeButton);
+                
+                // Add a "Next" button to navigate through new messages
+                const nextButton = document.createElement('span');
+                nextButton.innerHTML = ' Next ↓';
+                nextButton.style.cursor = 'pointer';
+                nextButton.style.float = 'right';
+                nextButton.style.marginRight = '20px';
+                
+                let currentIndex = 0;
+                nextButton.onclick = function() {
+                    currentIndex = (currentIndex + 1) % newMessages.length;
+                    newMessages[currentIndex].scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center'
+                    });
+                };
+                
+                indicator.appendChild(nextButton);
             }
         }
         
@@ -543,11 +646,15 @@ def generate_javascript() -> str:
             
             // Set initial chat order (newest first by default)
             setInitialChatOrder();
+            
+            // Scroll to first new message if there are any
+            scrollToFirstNewMessage();
         });
     """
 
 def generate_html(messages: List[Dict[str, Any]], extract_dir: str, output_file: str, 
-                 info_text: Optional[str] = None, chat_title: str = "WhatsApp Chat") -> None:
+                 info_text: Optional[str] = None, chat_title: str = "WhatsApp Chat",
+                 highlight_new: str = 'none') -> None:
     """Generate HTML from parsed messages.
     
     Args:
@@ -556,6 +663,7 @@ def generate_html(messages: List[Dict[str, Any]], extract_dir: str, output_file:
         output_file: Path to write the HTML output
         info_text: Optional content of info.txt file
         chat_title: Title of the chat
+        highlight_new: How to highlight new messages (none, subtle, prominent)
     """
     # Get relative path to JSON file
     json_file = os.path.basename(output_file).replace('.html', '.json')
@@ -563,6 +671,9 @@ def generate_html(messages: List[Dict[str, Any]], extract_dir: str, output_file:
     # Get CSS and JavaScript
     css = generate_css()
     js = generate_javascript()
+    
+    # Count new messages
+    new_message_count = sum(1 for m in messages if m.get('_internal', {}).get('is_new', False))
     
     # Start building the HTML content
     html_content = f"""<!DOCTYPE html>
@@ -619,7 +730,8 @@ def generate_html(messages: List[Dict[str, Any]], extract_dir: str, output_file:
                 message_date = message['timestamp'].split(',')[0].strip()
                 message_time = message['timestamp'].split(',')[1].strip() if ',' in message['timestamp'] else ""
         except Exception as e:
-            print(f"Warning when formatting date: {e}")
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Warning when formatting date: {e}")
             # Fallback for unparseable dates - use the original string
             message_date = message['timestamp'].split(',')[0].strip()
             message_time = message['timestamp'].split(',')[1].strip() if ',' in message['timestamp'] else ""
@@ -644,8 +756,17 @@ def generate_html(messages: List[Dict[str, Any]], extract_dir: str, output_file:
         elif sender != "System":
             message_type = "user"  # Assume messages without "~" are from the user
         
+        # Check if this is a new message
+        new_message_class = ""
+        is_new = message.get('_internal', {}).get('is_new', False)
+        if is_new and highlight_new != 'none':
+            if highlight_new == 'subtle':
+                new_message_class = " new-message-subtle"
+            elif highlight_new == 'prominent':
+                new_message_class = " new-message-prominent"
+        
         # Create the message HTML
-        html_content += f'            <div class="message {message_type}">\n'
+        html_content += f'            <div class="message {message_type}{new_message_class}">\n'
         
         # Add sender if it's not a system message
         if message_type != "system":
@@ -745,4 +866,5 @@ def generate_html(messages: List[Dict[str, Any]], extract_dir: str, output_file:
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(html_content)
     
-    print(f"Generated HTML file: {output_file}")
+    logger = logging.getLogger(__name__)
+    logger.info(f"Generated HTML file: {output_file}")

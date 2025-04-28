@@ -18,18 +18,22 @@ This tool automates browser interactions, allowing you to list groups, search fo
 
 ## WhatsApp Chat Export to HTML
 
-This tool converts WhatsApp chat export files (_chat.txt and media) into a beautiful, interactive HTML viewer with additional features.
+This tool converts WhatsApp chat export files into a beautiful, interactive HTML viewer with powerful features.
 
 ### Features
 
-- **Cross-Platform Compatibility:** Handles both desktop and mobile WhatsApp export formats
+- **Cross-Platform Compatibility:** Handles both desktop and mobile WhatsApp export formats automatically
 - **Media Support:** Displays images, videos, and other media files inline
 - **Chronological Control:** Toggle between newest-first and oldest-first message display
 - **Dark/Light Mode:** Switch between light and dark themes with automatic night mode after 9 PM
-- **JSON Export:** Generates a structured JSON file with all chat data for further analysis
+- **JSON Export:** Generates structured JSON files with all chat data for further analysis
 - **Chat Info Panel:** Displays chat information from info.txt if available
 - **Custom Titles:** Uses the title from info.txt to personalize the display
 - **Mobile Responsive:** Works well on both desktop and mobile browsers
+- **Update Detection:** Add new messages to existing exports with visual highlighting
+- **Message IDs:** Tracks messages uniquely for update detection and de-duplication
+- **Enhanced Media Handling:** Improved detection and display of various media types
+- **Metadata Storage:** Maintains chat history and processing information
 
 ## Prerequisites
 
@@ -105,18 +109,37 @@ The WhatsApp Chat Export to HTML tool converts your exported WhatsApp chats to a
    - Add any additional description or context
 
 3. **Run the conversion script**:
+   
+   For new exports:
    ```bash
-   python whatsapp_converter.py export.zip
+   python whatsapp_converter.py convert export.zip -o my_output_dir
    ```
 
-4. **Specify a custom output directory (optional)**:
+   To update an existing export with new messages:
    ```bash
-   python whatsapp_converter.py export.zip -o my_output_dir
+   python whatsapp_converter.py update export.zip -o my_output_dir --highlight subtle
    ```
 
-5. **Open the generated HTML file**:
+4. **Open the generated HTML file**:
    - Navigate to the output directory
    - Open `whatsapp_chat.html` in your browser
+
+### Command Line Options
+
+```
+Commands:
+    convert             Process a new WhatsApp export
+    update              Update an existing export with new messages
+
+Arguments:
+    ZIPFILE             Path to the WhatsApp export zip file
+    
+Options:
+    --output-dir DIR    Output directory for HTML and JSON files [default: html]
+    --info-file FILE    Optional path to a custom info.txt file
+    --highlight LEVEL   How to highlight new messages (none, subtle, prominent) [default: subtle]
+    -h, --help          Show this help message and exit
+```
 
 ### Features in Detail
 
@@ -124,6 +147,8 @@ The WhatsApp Chat Export to HTML tool converts your exported WhatsApp chats to a
 - **Theme Toggle**: Click the 🌙/☀️ button to switch between dark and light modes
 - **Info Button**: If you included an info.txt file, click "Info" to see details about the chat
 - **JSON Data**: Click "JSON" to download a JSON file containing all the chat data
+- **Update Highlighting**: New messages are highlighted when updating an existing export
+- **Mobile & Desktop Format Detection**: Automatically detects and handles both export formats
 
 ## Related Tools
 
