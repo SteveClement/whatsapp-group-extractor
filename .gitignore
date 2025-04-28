@@ -1,8 +1,8 @@
 # Handcrafted by a human start
-config.py
+group_extractor/config.py
 
 # Default folder for Chrome Profile
-Google/
+group_extractor/Google/
 
 # HTML output directory
 html/
