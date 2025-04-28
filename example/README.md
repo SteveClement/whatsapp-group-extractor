@@ -7,8 +7,8 @@ This is an export from a fraudulent Defi scam. It is only the beginning of the c
 To convert this export to html do the following:
 
 ```
-python ../whatsapp_converter.py -o defi-html WhatsApp\ Chat\ -\ DeFi\ Farming\ Club\ V3.zip
-cd ../defi-html
+python ../whatsapp_converter.py -o defi-html WhatsApp\ Chat\ -\ DeFi\ Farming\ Club\ V3_desktop.zip
+cd ../defi_desktop-html
 ```
 
-This will create a folder called `defi-html` in the repositories root folder.
+This will create a folder called `defi_desktop-html` in the repositories root folder.
