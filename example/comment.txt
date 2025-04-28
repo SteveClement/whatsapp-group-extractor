@@ -1,0 +1,5 @@
+This shall server as a place-holder for a custom comment section.
+For the defi example, it could be something like:
+
+Got automatically added to `DeFi Farming Club V3` community.
+It is geared towards English speaking users but the info was in Simplified Chinese.
