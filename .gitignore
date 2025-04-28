@@ -3,6 +3,10 @@ config.py
 
 # Default folder for Chrome Profile
 Google/
+
+# HTML output directory
+html/
+
 # Handcrafted by a human end
 
 # Created by https://www.toptal.com/developers/gitignore/api/python
