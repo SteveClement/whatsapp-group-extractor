@@ -62,7 +62,6 @@ HEADLESS = False
 
 # Enable debug output for troubleshooting
 DEBUG = True
-```
 
 # Other tools
 
