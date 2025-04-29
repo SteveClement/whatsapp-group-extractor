@@ -4,6 +4,7 @@ import html
 import re
 import os
 import logging
+from datetime import datetime
 from typing import List, Dict, Any, Optional
 
 from .media import find_media_file
@@ -35,9 +36,9 @@ def generate_css() -> str:
         --date-line-color: #e0e0e0;
         --text-color: #000;
         --container-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        --new-message-subtle: rgba(255, 252, 127, 0.2);
-        --new-message-prominent: rgba(255, 252, 127, 0.5);
-        --new-message-border: rgba(255, 193, 7, 0.5);
+        --new-message-subtle: rgba(255, 193, 7, 0.25);
+        --new-message-prominent: rgba(255, 193, 7, 0.5);
+        --new-message-border: rgba(255, 130, 0, 0.7);
         --new-message-indicator: #FFC107;
     }
     
@@ -60,9 +61,9 @@ def generate_css() -> str:
         --date-line-color: #333;
         --text-color: #e0e0e0;
         --container-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-        --new-message-subtle: rgba(255, 252, 127, 0.15);
-        --new-message-prominent: rgba(255, 252, 127, 0.25);
-        --new-message-border: rgba(255, 193, 7, 0.4);
+        --new-message-subtle: rgba(255, 193, 7, 0.2);
+        --new-message-prominent: rgba(255, 193, 7, 0.35);
+        --new-message-border: rgba(255, 152, 0, 0.6);
         --new-message-indicator: #FFC107;
     }
     
@@ -382,6 +383,30 @@ def generate_css() -> str:
         font-weight: bold;
     }
     
+    .update-timestamp {
+        text-align: center;
+        padding: 8px 12px;
+        background-color: var(--header-bg);
+        color: var(--header-color);
+        margin: 15px auto;
+        border-radius: 10px;
+        font-weight: bold;
+        width: 80%;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        position: relative;
+    }
+    
+    .update-message {
+        text-align: center;
+        padding: 10px 15px;
+        color: var(--date-color);
+        font-style: italic;
+        font-size: 0.85em;
+        margin: 25px auto 15px;
+        border-top: 1px solid var(--date-line-color);
+        max-width: 80%;
+    }
+    
     .new-messages-indicator {
         background-color: var(--header-bg);
         color: white;
@@ -654,7 +679,7 @@ def generate_javascript() -> str:
 
 def generate_html(messages: List[Dict[str, Any]], extract_dir: str, output_file: str, 
                  info_text: Optional[str] = None, chat_title: str = "WhatsApp Chat",
-                 highlight_new: str = 'none') -> None:
+                 highlight_new: str = 'none', zip_timestamp: Optional[str] = None) -> None:
     """Generate HTML from parsed messages.
     
     Args:
@@ -664,6 +689,7 @@ def generate_html(messages: List[Dict[str, Any]], extract_dir: str, output_file:
         info_text: Optional content of info.txt file
         chat_title: Title of the chat
         highlight_new: How to highlight new messages (none, subtle, prominent)
+        zip_timestamp: Optional timestamp of the zip file for update message
     """
     # Get relative path to JSON file
     json_file = os.path.basename(output_file).replace('.html', '.json')
@@ -674,6 +700,14 @@ def generate_html(messages: List[Dict[str, Any]], extract_dir: str, output_file:
     
     # Count new messages
     new_message_count = sum(1 for m in messages if m.get('_internal', {}).get('is_new', False))
+    
+    # Debug info for highlighting
+    logger = logging.getLogger(__name__)
+    logger.info(f"Highlight level: {highlight_new}, New messages detected: {new_message_count}")
+    if new_message_count > 0:
+        for i, m in enumerate(messages):
+            if m.get('_internal', {}).get('is_new', False):
+                logger.info(f"New message {i}: {m.get('content', '')[:30]}...")
     
     # Start building the HTML content
     html_content = f"""<!DOCTYPE html>
@@ -717,6 +751,8 @@ def generate_html(messages: List[Dict[str, Any]], extract_dir: str, output_file:
 """
 
     current_date = None
+    found_first_new = False
+    update_timestamp_added = False
     
     for message in messages:
         # Parse and format the timestamp
@@ -759,6 +795,13 @@ def generate_html(messages: List[Dict[str, Any]], extract_dir: str, output_file:
         # Check if this is a new message
         new_message_class = ""
         is_new = message.get('_internal', {}).get('is_new', False)
+        
+        # Add update timestamp before the first new message
+        if is_new and not update_timestamp_added and highlight_new != 'none':
+            now = datetime.now().strftime("%d %B %Y, %H:%M")
+            html_content += f'            <div class="update-timestamp">Updated on {now} ↓</div>\n'
+            update_timestamp_added = True
+        
         if is_new and highlight_new != 'none':
             if highlight_new == 'subtle':
                 new_message_class = " new-message-subtle"
@@ -853,9 +896,19 @@ def generate_html(messages: List[Dict[str, Any]], extract_dir: str, output_file:
         html_content += f'                <div class="message-time">{message_time}</div>\n'
         html_content += '            </div>\n'
     
-    # Close the HTML document
+    # Close the chat messages div
     html_content += """        </div>
-    </div>
+"""
+
+    # Add export/update timestamp at the end if provided
+    if zip_timestamp and highlight_new != 'none':
+        html_content += f"""        <div class="update-message">
+            Export updated on {zip_timestamp}.
+        </div>
+"""
+
+    # Close the rest of the HTML document
+    html_content += """    </div>
     
     <script>""" + js + """
     </script>
