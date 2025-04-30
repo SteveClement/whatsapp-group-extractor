@@ -10,6 +10,9 @@ from typing import List, Dict, Any, Optional
 from .media import find_media_file
 from .utils import parse_timestamp
 
+# Set up logging
+logger = logging.getLogger(__name__)
+
 def generate_css() -> str:
     """Generate CSS styles for the HTML output.
     
@@ -677,14 +680,14 @@ def generate_javascript() -> str:
         });
     """
 
-def generate_html(messages: List[Dict[str, Any]], extract_dir: str, output_file: str, 
+def generate_html(messages: List[Dict[str, Any]], media_dir: str, output_file: str, 
                  info_text: Optional[str] = None, chat_title: str = "WhatsApp Chat",
                  highlight_new: str = 'none', zip_timestamp: Optional[str] = None) -> None:
     """Generate HTML from parsed messages.
     
     Args:
         messages: List of parsed message dictionaries
-        extract_dir: Directory containing the extracted WhatsApp export
+        media_dir: Directory containing the media files
         output_file: Path to write the HTML output
         info_text: Optional content of info.txt file
         chat_title: Title of the chat
@@ -702,7 +705,6 @@ def generate_html(messages: List[Dict[str, Any]], extract_dir: str, output_file:
     new_message_count = sum(1 for m in messages if m.get('_internal', {}).get('is_new', False))
     
     # Debug info for highlighting
-    logger = logging.getLogger(__name__)
     logger.info(f"Highlight level: {highlight_new}, New messages detected: {new_message_count}")
     if new_message_count > 0:
         for i, m in enumerate(messages):
@@ -766,7 +768,6 @@ def generate_html(messages: List[Dict[str, Any]], extract_dir: str, output_file:
                 message_date = message['timestamp'].split(',')[0].strip()
                 message_time = message['timestamp'].split(',')[1].strip() if ',' in message['timestamp'] else ""
         except Exception as e:
-            logger = logging.getLogger(__name__)
             logger.warning(f"Warning when formatting date: {e}")
             # Fallback for unparseable dates - use the original string
             message_date = message['timestamp'].split(',')[0].strip()
@@ -863,14 +864,14 @@ def generate_html(messages: List[Dict[str, Any]], extract_dir: str, output_file:
                 html_content += '                <div class="media-container">\n'
                 
                 if media['file']:
-                    media_path = find_media_file(extract_dir, media['file'])
-                    if media_path:
-                        # Get the relative path from output file to media file
-                        rel_path = os.path.relpath(
-                            media_path, 
-                            os.path.dirname(output_file)
-                        )
-                        
+                    # Use the media directory with filename directly
+                    media_filename = os.path.basename(media['file'])
+                    rel_path = f"media/{media_filename}"
+                    
+                    # Check if the media file exists in the media directory
+                    media_exists = os.path.exists(os.path.join(media_dir, media_filename))
+                    
+                    if media_exists:
                         if media['type'] == 'photo':
                             html_content += f'                    <img class="media-image" src="{rel_path}" alt="Image">\n'
                         elif media['type'] == 'video':
@@ -919,5 +920,4 @@ def generate_html(messages: List[Dict[str, Any]], extract_dir: str, output_file:
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(html_content)
     
-    logger = logging.getLogger(__name__)
     logger.info(f"Generated HTML file: {output_file}")

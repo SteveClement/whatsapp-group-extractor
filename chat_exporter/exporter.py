@@ -78,6 +78,43 @@ def extract_zip(zip_path: str) -> str:
     
     return extract_dir
 
+def copy_media_files(extract_dir: str, output_dir: str) -> str:
+    """Copy media files from extract directory to output directory.
+    
+    Args:
+        extract_dir: Directory containing the extracted WhatsApp export
+        output_dir: Target output directory
+        
+    Returns:
+        Path to the media directory
+    """
+    # Create media directory
+    media_dir = os.path.join(output_dir, "media")
+    os.makedirs(media_dir, exist_ok=True)
+    
+    logger.info(f"Copying media files to {media_dir}")
+    
+    # Track how many files were copied
+    copied_count = 0
+    
+    # Copy all non-txt files (which are likely media)
+    for root, _, files in os.walk(extract_dir):
+        for file in files:
+            if not file.endswith('.txt'):
+                source_path = os.path.join(root, file)
+                target_path = os.path.join(media_dir, file)
+                
+                # Check if the file already exists
+                if not os.path.exists(target_path):
+                    try:
+                        shutil.copy2(source_path, target_path)
+                        copied_count += 1
+                    except Exception as e:
+                        logger.warning(f"Could not copy {file}: {e}")
+    
+    logger.info(f"Copied {copied_count} media files to output directory")
+    return media_dir
+
 def export_json(data: Union[List[Dict[str, Any]], Dict[str, Any]], output_file: str) -> None:
     """Export data to a JSON file.
     
@@ -250,8 +287,11 @@ def process_export(zip_path: str, output_dir: str, info_file_path: Optional[str]
         # Get the zip file timestamp
         zip_timestamp = get_zip_info(zip_path)
         
+        # Copy media files to the output directory's media folder
+        media_dir = copy_media_files(extract_dir, output_dir)
+        
         # Generate HTML
-        generate_html(message_dicts, extract_dir, html_output, info_text, chat.metadata.title, zip_timestamp=zip_timestamp)
+        generate_html(message_dicts, media_dir, html_output, info_text, chat.metadata.title, zip_timestamp=zip_timestamp)
         
         # Export the messages in the original format for backward compatibility
         export_json(message_dicts, json_output)
@@ -269,8 +309,12 @@ def process_export(zip_path: str, output_dir: str, info_file_path: Optional[str]
         return html_output, json_output, metadata_output
     
     finally:
-        # We're not cleaning up the extracted directory so the HTML can reference media files
-        pass
+        # Now we can clean up the extracted directory since we've copied the media files
+        try:
+            shutil.rmtree(extract_dir, ignore_errors=True)
+            logger.info(f"Cleaned up temporary directory: {extract_dir}")
+        except Exception as e:
+            logger.warning(f"Could not clean up temporary directory: {e}")
 
 def process_update(zip_path: str, output_dir: str, info_file_path: Optional[str] = None, 
                   highlight_level: str = 'subtle') -> Tuple[str, str, str, int]:
@@ -335,11 +379,14 @@ def process_update(zip_path: str, output_dir: str, info_file_path: Optional[str]
         # Get zip file creation timestamp
         zip_timestamp = get_zip_info(zip_path)
         
+        # Copy any new media files from the update
+        media_dir = copy_media_files(extract_dir, output_dir)
+        
         # Generate HTML with new messages highlighted
         message_dicts = [message.to_dict() for message in existing_chat.messages]
         generate_html(
             message_dicts, 
-            extract_dir, 
+            media_dir, 
             html_output, 
             info_text, 
             existing_chat.metadata.title,
@@ -360,6 +407,13 @@ def process_update(zip_path: str, output_dir: str, info_file_path: Optional[str]
             logger.error(f"Error exporting full chat data: {e}")
             # This is not a critical error, we can continue
         
+        # Clean up the temp directory since we've copied the media files
+        try:
+            shutil.rmtree(extract_dir, ignore_errors=True)
+            logger.info(f"Cleaned up temporary directory: {extract_dir}")
+        except Exception as e:
+            logger.warning(f"Could not clean up temporary directory: {e}")
+            
         return html_output, json_output, metadata_output, new_message_count
         
     except Exception as e:

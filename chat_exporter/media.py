@@ -90,11 +90,11 @@ def get_media_type(filename: str) -> str:
     # Default to unknown
     return 'unknown'
 
-def find_media_file(extract_dir: str, filename: str) -> Optional[str]:
-    """Find a media file in the extracted directory.
+def find_media_file(directory: str, filename: str) -> Optional[str]:
+    """Find a media file in the provided directory.
     
     Args:
-        extract_dir: Directory containing the extracted WhatsApp export
+        directory: Directory to search for the media file
         filename: Name of the media file to find
         
     Returns:
@@ -104,10 +104,15 @@ def find_media_file(extract_dir: str, filename: str) -> Optional[str]:
     if not filename:
         return None
     
-    # Direct match first (most efficient)
-    for root, _, files in os.walk(extract_dir):
-        if filename in files:
-            return os.path.join(root, filename)
+    # First check if the media file exists directly in the media folder
+    media_path = os.path.join(directory, os.path.basename(filename))
+    if os.path.exists(media_path):
+        return media_path
+    
+    # If we don't find the direct match, try walking the directory
+    for root, _, files in os.walk(directory):
+        if os.path.basename(filename) in files:
+            return os.path.join(root, os.path.basename(filename))
     
     # Extract key information from the filename
     base_name, extension = os.path.splitext(filename)
@@ -160,7 +165,7 @@ def find_media_file(extract_dir: str, filename: str) -> Optional[str]:
             mobile_pattern = '-'.join(mobile_parts)
     
     # Scan for matching files
-    for root, _, files in os.walk(extract_dir):
+    for root, _, files in os.walk(directory):
         for file in files:
             file_path = os.path.join(root, file)
             file_base, file_ext = os.path.splitext(file)
@@ -230,11 +235,11 @@ def find_media_file(extract_dir: str, filename: str) -> Optional[str]:
     # If all fails, return None
     return None
 
-def scan_media_directory(extract_dir: str) -> Dict[str, List[str]]:
-    """Scan the extract directory for media files and categorize them.
+def scan_media_directory(directory: str) -> Dict[str, List[str]]:
+    """Scan the directory for media files and categorize them.
     
     Args:
-        extract_dir: Directory containing the extracted WhatsApp export
+        directory: Directory containing media files
         
     Returns:
         Dictionary mapping media types to lists of file paths
@@ -248,7 +253,7 @@ def scan_media_directory(extract_dir: str) -> Dict[str, List[str]]:
         'unknown': []
     }
     
-    for root, _, files in os.walk(extract_dir):
+    for root, _, files in os.walk(directory):
         for file in files:
             # Skip text files (likely chat or info files)
             if file.endswith('.txt'):
